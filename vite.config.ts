@@ -20,6 +20,16 @@ export default defineConfig({
         icons: [
           {
             src: 'coffee.svg',
+            sizes: '192x192',
+            type: 'image/svg+xml'
+          },
+          {
+            src: 'coffee.svg',
+            sizes: '512x512',
+            type: 'image/svg+xml'
+          },
+          {
+            src: 'coffee.svg',
             sizes: 'any',
             type: 'image/svg+xml',
             purpose: 'any maskable'
