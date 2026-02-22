@@ -1,0 +1,134 @@
+.result-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.result-panel {
+  padding: 24px;
+  margin-bottom: 24px;
+  animation: fadeInUp 0.6s ease-out;
+}
+
+.result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.result-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: transform 0.2s;
+  opacity: 0;
+  animation-fill-mode: forwards;
+}
+
+.result-item:hover {
+  transform: translateX(4px);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.result-item.first-place {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(239, 68, 68, 0.15));
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  transform: scale(1.02);
+}
+
+.result-item.first-place:hover {
+  transform: scale(1.02) translateX(4px);
+}
+
+.rank {
+  width: 40px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.rank-text {
+  font-weight: 800;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+}
+
+.icon-gold {
+  color: #fbbf24;
+}
+
+.icon-silver {
+  color: #9ca3af;
+}
+
+.player-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-left: 12px;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.player-info .dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.amount {
+  text-align: right;
+}
+
+.amount-value {
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.text-danger {
+  color: #fca5a5;
+  text-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+}
+
+.text-success {
+  color: var(--success);
+  text-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+}
+
+.summary {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.2);
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+}
+
+.summary strong {
+  margin-left: 8px;
+  color: white;
+  font-size: 1.3rem;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.restart-btn {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #10b981, #059669);
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+}
+
+.restart-btn:hover {
+  background: linear-gradient(135deg, #059669, #047857);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6);
+}

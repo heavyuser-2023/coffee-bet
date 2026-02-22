@@ -1,0 +1,86 @@
+.race-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  animation: fadeInUp 0.5s ease-out;
+}
+
+.race-header {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.race-header h2 {
+  font-size: 1.8rem;
+  font-weight: 800;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, #f59e0b, #ef4444);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.live-rank {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+}
+
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.1);
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+}
+
+.rank-num {
+  font-weight: 800;
+  margin-right: 6px;
+  color: var(--primary);
+}
+
+.rank-name {
+  color: #fff;
+  font-weight: 600;
+}
+
+.player-legend {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #e2e8f0;
+}
+
+.legend-item .dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.4);
+}
+
+.canvas-container {
+  flex: 1;
+  min-height: 500px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  padding: 0;
+  position: relative;
+}
+
+.canvas-container canvas {
+  border-radius: 24px;
+}

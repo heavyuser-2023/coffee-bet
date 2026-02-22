@@ -1,0 +1,254 @@
+.setup-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.setup-panel {
+  padding: 24px;
+  margin-bottom: 24px;
+  animation: fadeInUp 0.5s ease-out;
+}
+
+.section {
+  margin-bottom: 28px;
+}
+
+.section h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  color: #e2e8f0;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.section-header h2 {
+  margin-bottom: 0;
+}
+
+.icon {
+  margin-right: 8px;
+  color: var(--primary);
+}
+
+.icon-mr {
+  margin-right: 8px;
+}
+
+/* Input group */
+.input-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-group input {
+  width: 100%;
+  padding: 14px 44px 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  background: rgba(0, 0, 0, 0.2);
+  color: white;
+  font-size: 1.2rem;
+  font-family: inherit;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.input-group input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
+}
+
+.currency {
+  position: absolute;
+  right: 16px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+/* Player list */
+.player-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.player-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.player-number {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(236, 72, 153, 0.2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: var(--primary);
+  font-size: 0.9rem;
+}
+
+.player-item input {
+  flex: 1;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.03);
+  color: white;
+  font-size: 1rem;
+  transition: all 0.2s;
+}
+
+.player-item input:focus {
+  outline: none;
+  border-color: var(--primary);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.btn-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+}
+
+.btn-icon:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.btn-add {
+  color: var(--primary);
+  border: 1px dashed var(--primary);
+}
+
+.btn-remove {
+  color: var(--danger);
+}
+
+/* Mode toggle */
+.mode-toggle {
+  display: flex;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 6px;
+  border-radius: 14px;
+}
+
+.mode-btn {
+  flex: 1;
+  padding: 12px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.mode-btn.active {
+  background: var(--glass-bg);
+  color: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Random Preview Section */
+.random-preview-section {
+  background: rgba(139, 92, 246, 0.05);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 16px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.preview-header h3 {
+  font-size: 0.95rem;
+  color: var(--primary);
+}
+
+.btn-refresh {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(139, 92, 246, 0.2);
+  color: #fff;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  border-radius: 20px;
+}
+
+.btn-refresh:hover {
+  background: rgba(139, 92, 246, 0.4);
+}
+
+.btn-refresh.spinning svg {
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(-360deg); }
+}
+
+.preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: opacity 0.3s;
+}
+
+.preview-list.calculating {
+  opacity: 0.4;
+  filter: blur(1px);
+}
+
+.preview-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.preview-item .name {
+  color: #e2e8f0;
+}
+
+.preview-item .amount {
+  font-weight: 600;
+  color: var(--success);
+}
+
+.start-btn {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fadeIn {
+  animation: fadeIn 0.4s ease-out;
+}
