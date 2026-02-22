@@ -56,3 +56,34 @@
   box-shadow: 0 6px 20px rgba(139, 92, 246, 0.6);
   transform: translateY(-2px);
 }
+
+.pwa-install-button {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background-color: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  gap: 8px;
+  z-index: 1000;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  animation: pulseInstallBtn 2s infinite ease-in-out;
+}
+
+.pwa-install-button:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+  transform: scale(1.05);
+}
+
+@keyframes pulseInstallBtn {
+  0% { box-shadow: 0 4px 15px rgba(59, 130, 246, 0.2); }
+  50% { box-shadow: 0 4px 25px rgba(59, 130, 246, 0.6); }
+  100% { box-shadow: 0 4px 15px rgba(59, 130, 246, 0.2); }
+}

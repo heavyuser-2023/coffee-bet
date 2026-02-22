@@ -11,7 +11,7 @@ interface Props {
 
 const PLAYER_COLORS = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
 
-export function RaceScreen({ players, amountsPool, onFinish }: Props) {
+export function RaceScreen({ players, onFinish }: Props) {
   const sceneRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<Matter.Engine | null>(null);
   const renderRef = useRef<Matter.Render | null>(null);
