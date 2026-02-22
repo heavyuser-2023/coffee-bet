@@ -46,26 +46,8 @@ function App() {
 
   // PWA 설치 상태 관리
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isIOS, setIsIOS] = useState(false);
-  const [showIOSPrompt, setShowIOSPrompt] = useState(false);
 
   useEffect(() => {
-    // iOS 기기 판별 로직
-    const checkIsIOS = () => {
-      const userAgent = window.navigator.userAgent.toLowerCase();
-      return /iphone|ipad|ipod/.test(userAgent);
-    };
-
-    if (checkIsIOS()) {
-      setIsIOS(true);
-      
-      // 이미 설치된 PWA(Standalone 모드)에서는 알림을 띄우지 않음
-      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || ('standalone' in window.navigator && (window.navigator as any).standalone === true);
-      if (!isStandalone) {
-         setShowIOSPrompt(true);
-      }
-    }
-
     const handler = (e: Event) => {
       // Chrome에서 기본 설치 팝업이 바로 뜨는 것을 방지
       e.preventDefault();
@@ -100,18 +82,8 @@ function App() {
 
   return (
     <div className="app-container">
-      {/* iOS 사파리용 대체 설치 안내 */}
-      {showIOSPrompt && gameState === 'setup' && (
-        <div className="ios-install-prompt">
-          <p>내기하실 때마다 편하게 쓰시려면?</p>
-          <p>1. 하단의 <strong>공유 [↑] 버튼</strong> 탭<br/>
-             2. <strong>'홈 화면에 추가'</strong> 선택 📱</p>
-          <button className="ios-close-btn" onClick={() => setShowIOSPrompt(false)}>✕</button>
-        </div>
-      )}
-
-      {/* 안드로이드/크롬 PC용 기본 PWA 설치 유도 버튼 */}
-      {deferredPrompt && !isIOS && gameState === 'setup' && (
+      {/* 설치 유도 버튼 (설치 가능한 상태일 때만 메인화면에 표시) */}
+      {deferredPrompt && gameState === 'setup' && (
         <button 
           onClick={handleInstallClick} 
           className="pwa-install-button"
