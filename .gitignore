@@ -22,3 +22,38 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# ============================================
+# 🔒 Android / TWA 빌드 - 보안 민감 파일
+# ============================================
+
+# 앱 서명 키스토어 - 절대 공개 저장소에 올리면 안 됨
+*.keystore
+*.jks
+
+# 빌드 자동화 입력 파일 (비밀번호 포함 가능)
+bubblewrap_answers.txt
+inputs.txt
+manifest-checksum.txt
+
+# ============================================
+# 📦 Android / TWA 빌드 산출물
+# ============================================
+
+# APK / AAB 바이너리
+*.apk
+*.aab
+*.idsig
+
+# Android Gradle 빌드 캐시
+.gradle/
+build/
+app/build/
+android/.gradle/
+android/build/
+
+# Gradle 로컬 설정 (개발 환경 의존)
+local.properties
+
+# 루트 assetlinks.json (public/.well-known/assetlinks.json과 중복)
+/assetlinks.json

@@ -1,0 +1,43 @@
+{
+  "packageId": "com.heavyuser73.coffeebet",
+  "host": "heavyuser.github.io",
+  "name": "Coffee Bet App",
+  "launcherName": "CoffeeBet",
+  "display": "standalone",
+  "themeColor": "#121212",
+  "themeColorDark": "#000000",
+  "navigationColor": "#000000",
+  "navigationColorDark": "#000000",
+  "navigationDividerColor": "#000000",
+  "navigationDividerColorDark": "#000000",
+  "backgroundColor": "#121212",
+  "enableNotifications": false,
+  "startUrl": "/coffee-bet/",
+  "iconUrl": "http://localhost:8080/coffee.svg",
+  "maskableIconUrl": "http://localhost:8080/coffee.svg",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "/Users/heavyuser/vscode/coffee-bet/android.keystore",
+    "alias": "android"
+  },
+  "appVersionName": "1.0.0",
+  "appVersionCode": 2,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "http://localhost:8080/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "minSdkVersion": 21,
+  "orientation": "default",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "displayOverride": [],
+  "appVersion": "1.0.0"
+}
