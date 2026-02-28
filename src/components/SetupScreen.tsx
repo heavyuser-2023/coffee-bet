@@ -66,7 +66,7 @@ export function SetupScreen({
   }, [gameMode, players.length, totalAmount]); 
 
   const handleAddPlayer = () => {
-    if (players.length >= 5) return;
+    if (players.length >= 20) return;
     const newId = Date.now().toString();
     setPlayers([...players, { id: newId, name: `참가자 ${players.length + 1}` }]);
   };
@@ -129,9 +129,9 @@ export function SetupScreen({
         <div className="section">
           <div className="section-header">
             <h2>
-              <Users className="icon" /> 참가자 ({players.length}/5)
+              <Users className="icon" /> 참가자 ({players.length}/20)
             </h2>
-            {players.length < 5 && (
+            {players.length < 20 && (
               <button className="btn-icon btn-add" onClick={handleAddPlayer}>
                 <Plus size={18} />
               </button>

@@ -1,7 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M17 8h1a4 4 0 1 1 0 8h-1"></path>
-  <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"></path>
-  <line x1="6" y1="2" x2="6" y2="4"></line>
-  <line x1="10" y1="2" x2="10" y2="4"></line>
-  <line x1="14" y1="2" x2="14" y2="4"></line>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <!-- 컵 본체 그라데이션 정의 -->
+  <defs>
+    <linearGradient id="cup-grad" x1="4" y1="8" x2="20" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#a855f7" />
+      <stop offset="100%" stop-color="#ec4899" />
+    </linearGradient>
+    <linearGradient id="smoke-grad" x1="12" y1="2" x2="12" y2="6" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#eab308" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#ec4899" stop-opacity="0.8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 뜨거운 김 효과 -->
+  <path d="M7 6c0-2 2-2 2-4" stroke="url(#smoke-grad)" stroke-width="2" stroke-linecap="round"/>
+  <path d="M12 6c0-2 2-2 2-4" stroke="url(#smoke-grad)" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M17 6c0-2 2-2 2-4" stroke="url(#smoke-grad)" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- 커피 라벨 포인트 (별) -->
+  <path d="M11 11.5l1-2.5 1 2.5 2.5.5-2 1.5.5 2.5-2-1.5-2 1.5.5-2.5-2-1.5z" fill="#fcd34d" opacity="0.9"/>
+
+  <!-- 컵 손잡이 -->
+  <path d="M17 9h2a4 4 0 0 1 0 8h-2" stroke="url(#cup-grad)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- 컵 본체 -->
+  <path d="M4 8h14v8a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z" fill="url(#cup-grad)" stroke="#8b5cf6" stroke-width="2" stroke-linejoin="round"/>
+  
+  <!-- 컵 뚜껑 / 테두리 강조 -->
+  <path d="M3 8h16" stroke="#fcd34d" stroke-width="2.5" stroke-linecap="round"/>
 </svg>

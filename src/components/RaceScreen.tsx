@@ -9,7 +9,12 @@ interface Props {
   onFinish: (results: string[]) => void;
 }
 
-const PLAYER_COLORS = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
+const PLAYER_COLORS = [
+  '#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6',
+  '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16',
+  '#a855f7', '#06b6d4', '#eab308', '#f43f5e', '#d946ef',
+  '#0ea5e9', '#22c55e', '#e11d48', '#4f46e5', '#ca8a04'
+];
 
 export function RaceScreen({ players, onFinish }: Props) {
   const sceneRef = useRef<HTMLDivElement>(null);
