@@ -20,10 +20,14 @@ export function RaceScreen({ players, onFinish }: Props) {
   const sceneRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<Matter.Engine | null>(null);
   const renderRef = useRef<Matter.Render | null>(null);
-  const runnerRef = useRef<Matter.Runner | null>(null);
-  
   const [finishedPlayers, setFinishedPlayers] = useState<string[]>([]);
   const finishedRef = useRef<string[]>([]);
+  
+  const runnerRef = useRef<Matter.Runner | null>(null);
+  
+  // 선두(1위) 구슬 라벨 추적 레이더
+  const leaderRef = useRef<string | null>(null);
+  const slowMoTimeoutRef = useRef<number | null>(null); // NodeJS.Timeout 타입 대신 브라우저 환경 호환을 위해 number 사용
 
   useEffect(() => {
     if (!sceneRef.current) return;
@@ -115,12 +119,20 @@ export function RaceScreen({ players, onFinish }: Props) {
     const bumperLeft = Bodies.circle(width / 2 - gap / 2 - 10, bottleneckY, 10, wallOptions);
     const bumperRight = Bodies.circle(width / 2 + gap / 2 + 10, bottleneckY, 10, wallOptions);
 
+    // 중간 회전 막대기(Mid Spinner) - 입구가 좁아지는 병목 지점 위
+    const midSpinnerY = bottleneckY - 50;
+    const midSpinner = Bodies.rectangle(width / 2, midSpinnerY, 150, 15, {
+      isStatic: true,
+      render: { fillStyle: '#3b82f6' } // 파란색 포인트 컬러
+    });
+
     Composite.add(engine.world, [
       leftWall, rightWall, 
       funnelLeft, funnelRight,
       bottleNeckFunnelLeft, bottleNeckFunnelRight,
       channelLeft, channelRight,
-      bumperLeft, bumperRight
+      bumperLeft, bumperRight,
+      midSpinner
     ]);
 
     // Pegs (핀)
@@ -273,22 +285,45 @@ export function RaceScreen({ players, onFinish }: Props) {
 
     // Camera Panning Logic & Spinner Rotation
     Events.on(engine, 'beforeUpdate', () => {
-      // 1. 역전 막대기(Spinner) 계속 회전
+      // 1. 역전 막대기(Spinner) 및 중간 막대기 계속 회전
       Matter.Body.setAngle(spinner, spinner.angle + 0.02); // 0.02 라디안씩 천천히 회전
+      Matter.Body.setAngle(midSpinner, midSpinner.angle - 0.025); // 중간 막대기는 반대 방향으로 약간 빠르게 회전
 
       // 2. 결승선을 통과하지 않은 구슬만 추적
       const activeMarbles = marbles.filter(m => !finishedRef.current.includes(m.label.split('_')[1]));
       
       if (activeMarbles.length > 0) {
-        // 가장 아래에 있는 구슬(선두)을 기준으로 카메라 이동, 혹은 평균 Y값
-        // 여기서는 가장 늦게 오는 구슬을 기다리거나, 선두를 따라가거나 결정해야 함
+        // 가장 아래에 있는 구슬(선두)을 기준으로 카메라 이동 및 순위 역전 감지
         // 레이스의 긴장감을 위해 제일 앞서가는(선두) 구슬을 포커스로 잡자 (단 너무 벌어지면 평균)
         let maxY = 0;
+        let currentLeader: string | null = null;
         for (const m of activeMarbles) {
           if (m.position.y > maxY) {
             maxY = m.position.y;
+            currentLeader = m.label;
           }
         }
+
+        // 선두(1위) 역전 시 슬로우 모션 효과 타격감 추가
+        if (currentLeader && leaderRef.current && currentLeader !== leaderRef.current) {
+          // 역전 감지됨!
+          if (engine.timing) {
+            engine.timing.timeScale = 0.2; // 20% 속도로 슬로우 모션
+          }
+          
+          if (slowMoTimeoutRef.current) {
+            clearTimeout(slowMoTimeoutRef.current);
+          }
+          
+          slowMoTimeoutRef.current = setTimeout(() => {
+            if (engine.timing) {
+              engine.timing.timeScale = 1.0; // 원상 복구
+            }
+          }, 1500); // 1.5초 동안 지속
+        }
+        
+        // 현재 선두 업데이트
+        leaderRef.current = currentLeader;
         
         let targetMinY = maxY - (viewHeight * 0.7); // 화면 하단부에 선두가 위치하도록
         let currentMinY = render.bounds.min.y;
