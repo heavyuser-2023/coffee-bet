@@ -1,7 +1,7 @@
 {
   "name": "coffee-bet",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "homepage": "https://heavyuser-2023.github.io/coffee-bet",
   "type": "module",
   "scripts": {

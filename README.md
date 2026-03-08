@@ -73,27 +73,48 @@ export default defineConfig([
 ```
 
 
+## 🚀 배포 및 빌드 가이드
 
-gh-pages 패키지를 사용하는 방법.
-
-패키지 설치: npm install gh-pages --save-dev
-
-package.json 설정: "homepage": "https://{username}.github.io/{repo-name}" 추가
-
-배포 명령 실행: npm run deploy
-
-이렇게 하면 깃허브가 자동으로 빌드된 파일을 읽어 웹사이트로 만들어줍니다.
-
----
-
-## 안드로이드 TWA (Trusted Web Activity) 앱 빌드 및 설치 방법
-
-프로젝트 설정(예: `twa-manifest.json`)이 변경된 경우 에뮬레이터나 실기기에 앱을 다시 빌드하고 덮어씌워야 합니다. 터미널에서 아래 과정을 진행하세요.
-
+### 1. 웹 배포 (GitHub Pages)
+GitHub Pages를 통해 웹 버전을 배포합니다. `gh-pages` 패키지를 사용하며, 빌드된 결과물이 `gh-pages` 브랜치로 자동 푸시되어 웹사이트에 반영됩니다.
 ```bash
-# 1. 앱 다시 빌드 (비밀번호 입력 창이 나올 수 있으며, 기본 비밀번호는 password123 입니다)
+# 최신 코드로 사이트를 빌드하고 GitHub Pages에 배포
+npm run deploy
+```
+
+### 2. 안드로이드 정식 앱 번들 (AAB) 빌드
+**Google Play 스토어 출시용** 포맷인 Android App Bundle(.aab)을 생성하는 방법입니다. Android 폴더 내에서 Gradle 명령어로 다이렉트 빌드합니다.
+```bash
+# android 디렉토리로 이동 후 명령어 실행
+cd android
+./gradlew clean bundleRelease
+
+# 빌드 완료 후 AAB 파일 위치:
+# android/app/build/outputs/bundle/release/app-release.aab
+```
+
+### 3. 안드로이드 설치용 앱 (APK) 빌드 및 테스팅
+실기기나 에뮬레이터에 직접 설치(`adb install`)하거나 배포하기 위한 **APK** 포맷 생성 방법입니다.
+
+#### 💡 정식 서명된 배포/설치용 APK 빌드 (권장)
+가장 권장되는 방식입니다. Bubblewrap CLI를 통해 기존에 설정된 키스토어를 이용해 자동으로 릴리즈 서명된 APK를 만듭니다.
+```bash
+# 프로젝트 최상위 루트 폴더에서 실행
 npx @bubblewrap/cli build
 
-# 2. 에뮬레이터(또는 연결된 기기)에 기존 앱 덮어씌워서 재설치
+# 비밀번호 입력 창이 나오면 기존에 설정된 암호를 입력하세요.
+# (기본 비밀번호: password123)
+
+# 빌드 완료 후 연결된 기기나 에뮬레이터에 앱 설치
 adb install -r app-release-signed.apk
+```
+
+#### 🛠 일반 테스트용 빌드 (Unsigned APK)
+디버깅이나 단순 확인 등 서명이 생략된 테스트용 Android 빌드가 필요할 경우 사용하는 명령어입니다.
+```bash
+cd android
+./gradlew assembleRelease
+
+# 빌드 완료 후 미서명 APK 파일 위치:
+# android/app/build/outputs/apk/release/app-release-unsigned.apk
 ```
