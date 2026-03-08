@@ -1,6 +1,6 @@
 {
   "packageId": "com.heavyuser73.coffeebet",
-  "host": "heavyuser.github.io",
+  "host": "heavyuser-2023.github.io",
   "name": "Coffee Bet App",
   "launcherName": "CoffeeBet",
   "display": "standalone",
@@ -20,8 +20,8 @@
     "path": "/Users/heavyuser/vscode/coffee-bet/android.keystore",
     "alias": "android"
   },
-  "appVersionName": "1.0.0",
-  "appVersionCode": 2,
+  "appVersionName": "4",
+  "appVersionCode": 3,
   "shortcuts": [],
   "generatorApp": "bubblewrap-cli",
   "webManifestUrl": "http://localhost:8080/manifest.webmanifest",
@@ -39,5 +39,5 @@
   "additionalTrustedOrigins": [],
   "retainedBundles": [],
   "displayOverride": [],
-  "appVersion": "1.0.0"
+  "appVersion": "4"
 }

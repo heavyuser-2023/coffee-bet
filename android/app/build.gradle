@@ -22,7 +22,7 @@ plugins {
 
 def twaManifest = [
     applicationId: 'com.heavyuser73.coffeebet',
-    hostName: 'heavyuser.github.io', // The domain being opened in the TWA.
+    hostName: 'heavyuser-2023.github.io', // The domain being opened in the TWA.
     launchUrl: '/coffee-bet/', // The start path for the TWA. Must be relative to the domain.
     name: 'Coffee Bet App', // The application name.
     launcherName: 'CoffeeBet', // The name shown on the Android Launcher.

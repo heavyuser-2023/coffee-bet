@@ -83,3 +83,17 @@ package.json 설정: "homepage": "https://{username}.github.io/{repo-name}" 추�
 배포 명령 실행: npm run deploy
 
 이렇게 하면 깃허브가 자동으로 빌드된 파일을 읽어 웹사이트로 만들어줍니다.
+
+---
+
+## 안드로이드 TWA (Trusted Web Activity) 앱 빌드 및 설치 방법
+
+프로젝트 설정(예: `twa-manifest.json`)이 변경된 경우 에뮬레이터나 실기기에 앱을 다시 빌드하고 덮어씌워야 합니다. 터미널에서 아래 과정을 진행하세요.
+
+```bash
+# 1. 앱 다시 빌드 (비밀번호 입력 창이 나올 수 있으며, 기본 비밀번호는 password123 입니다)
+npx @bubblewrap/cli build
+
+# 2. 에뮬레이터(또는 연결된 기기)에 기존 앱 덮어씌워서 재설치
+adb install -r app-release-signed.apk
+```

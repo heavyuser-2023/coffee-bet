@@ -34,7 +34,7 @@
         \"relation\": [\"delegate_permission/common.handle_all_urls\"],
         \"target\": {
             \"namespace\": \"web\",
-            \"site\": \"https://heavyuser.github.io\"
+            \"site\": \"https://heavyuser-2023.github.io\"
         }
     }]
     

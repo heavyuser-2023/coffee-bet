@@ -1,6 +1,10 @@
+import { useState } from 'react';
 import type { Player } from '../types';
 import './ResultScreen.css';
-import { RotateCcw, Trophy, Award } from 'lucide-react';
+import { RotateCcw, Trophy, Save } from 'lucide-react';
+import { useMutation, useConvexAuth } from 'convex/react';
+
+import { api } from '../../convex/_generated/api';
 
 interface Props {
   players: Player[];
@@ -12,6 +16,43 @@ interface Props {
 const PLAYER_COLORS = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
 
 export function ResultScreen({ players, amountsPool, raceResults, onRestart }: Props) {
+  const { isAuthenticated } = useConvexAuth();
+  const saveGroup = useMutation(api.participants.saveGroup);
+  
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [groupTitle, setGroupTitle] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSaveGroup = () => {
+    if (!isAuthenticated) {
+      alert("참가자를 저장하려면 상단의 로그인 버튼을 눌러주세요.");
+      return;
+    }
+    // 로그인 되어 있으면 모달 열기
+    setIsModalOpen(true);
+  };
+
+  const confirmSave = async () => {
+    if (!groupTitle.trim()) {
+      alert("그룹 이름을 입력해주세요.");
+      return;
+    }
+    setIsSaving(true);
+    try {
+      await saveGroup({
+        title: groupTitle.trim(),
+        players: players.map(p => ({ id: p.id, name: p.name }))
+      });
+      alert("성공적으로 저장되었습니다!");
+      setIsModalOpen(false);
+      setGroupTitle('');
+    } catch (e) {
+      console.error(e);
+      alert("저장 중 오류가 발생했습니다.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
   // 매핑 결과 계산
   // raceResults의 순서대로 amountsPool의 금액을 받음
   const finalResults = raceResults.map((id, index) => {
@@ -33,12 +74,11 @@ export function ResultScreen({ players, amountsPool, raceResults, onRestart }: P
           {finalResults.map((res, index) => (
             <div 
               key={res.player.id} 
-              className={`result-item fadeIn ${index === 0 ? 'first-place' : ''}`}
+              className={`result-item fadeIn ${res.amount > 0 ? 'last-place' : ''}`}
               style={{ animationDelay: `${index * 0.15}s` }}
             >
               <div className="rank">
-                {index === 0 ? <Trophy className="icon-gold" size={24} /> : 
-                 index === 1 ? <Award className="icon-silver" size={24} /> : 
+                {res.amount > 0 ? <Trophy className="icon-gold" size={24} /> : 
                  <span className="rank-text">{res.rank}위</span>}
               </div>
               <div className="player-info">
@@ -61,9 +101,38 @@ export function ResultScreen({ players, amountsPool, raceResults, onRestart }: P
         </div>
       </div>
 
-      <button className="btn-primary restart-btn" onClick={onRestart}>
-        <RotateCcw size={20} className="icon-mr" /> 다시 하기
-      </button>
+      <div className="action-buttons">
+        <div className="save-group-section">
+          <button className="btn-secondary save-group-btn" onClick={handleSaveGroup} disabled={isSaving}>
+            <Save size={20} className="icon-mr" /> 
+            {isSaving ? "저장 중..." : "참가자 저장"}
+          </button>
+        </div>
+        <button className="btn-primary restart-btn" onClick={onRestart}>
+          <RotateCcw size={20} className="icon-mr" /> 다시 하기
+        </button>
+      </div>
+
+      {isModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content glass-panel">
+            <h3>참가자 그룹 저장</h3>
+            <p>이 그룹의 이름을 입력해주세요.<br/>(예: 대학 동창, 개발팀 회식)</p>
+            <input 
+              type="text" 
+              value={groupTitle} 
+              onChange={e => setGroupTitle(e.target.value)}
+              placeholder="그룹 이름 입력"
+              className="group-input"
+              autoFocus
+            />
+            <div className="modal-actions">
+              <button className="btn-outline" onClick={() => setIsModalOpen(false)}>취소</button>
+              <button className="btn-primary" onClick={confirmSave}>저장하기</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

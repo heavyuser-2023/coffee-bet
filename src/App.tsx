@@ -15,6 +15,8 @@ interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
 }
 
+import { UserMenu } from './components/UserMenu'
+
 function App() {
   const [gameState, setGameState] = useState<GameState>('setup');
   const [players, setPlayers] = useState<Player[]>([
@@ -91,6 +93,11 @@ function App() {
           📱 앱 설치하기
         </button>
       )}
+
+      {/* 상단 로그인/로그아웃 메뉴 */}
+      <div className="top-menu-bar" style={{ marginBottom: '16px' }}>
+        <UserMenu />
+      </div>
 
       {gameState === 'setup' && (
         <SetupScreen 
