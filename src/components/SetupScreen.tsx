@@ -29,6 +29,7 @@ export function SetupScreen({
   // 로그인된 경우 저장된 그룹 목록을 가져옴
   const savedGroups = useQuery(api.participants.getGroups, isAuthenticated ? undefined : "skip");
   const saveGroup = useMutation(api.participants.saveGroup);
+  const deleteGroup = useMutation(api.participants.deleteGroup);
 
   const [randomAmountsPool, setRandomAmountsPool] = useState<number[]>([]);
   const [isCalculating, setIsCalculating] = useState(false);
@@ -42,6 +43,18 @@ export function SetupScreen({
     setTimeout(() => {
       setToastMessage(null);
     }, 4000); // 4초간 노출 (사용자 요청 반영: 더 오래 유지)
+  };
+
+  const handleDeleteGroup = async (id: any, title: string) => {
+    if (window.confirm(`'${title}' 그룹을 삭제하시겠습니까?`)) {
+      try {
+        await deleteGroup({ id });
+        showToast(`'${title}' (이)가 삭제되었습니다.`);
+      } catch (e) {
+        console.error(e);
+        showToast("삭제 중 오류가 발생했습니다.");
+      }
+    }
   };
 
   const openLoadModal = () => {
@@ -316,17 +329,29 @@ export function SetupScreen({
             ) : (
               <div className="group-list" style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '16px' }}>
                 {savedGroups.map((group) => (
-                  <button 
-                    key={group._id} 
-                    className="btn-outline group-item" 
-                    style={{ width: '100%', marginBottom: '8px', textAlign: 'left', padding: '12px' }}
-                    onClick={() => handleLoadGroup(group)}
-                  >
-                    <strong>{group.title}</strong>
-                    <span style={{ fontSize: '0.8rem', color: '#9ca3af', marginLeft: '8px' }}>
-                      ({group.players.length}명)
-                    </span>
-                  </button>
+                  <div key={group._id} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                    <button 
+                      className="btn-outline group-item" 
+                      style={{ flex: 1, textAlign: 'left', padding: '12px' }}
+                      onClick={() => handleLoadGroup(group)}
+                    >
+                      <strong>{group.title}</strong>
+                      <span style={{ fontSize: '0.8rem', color: '#9ca3af', marginLeft: '8px' }}>
+                        ({group.players.length}명)
+                      </span>
+                    </button>
+                    <button 
+                      className="btn-outline" 
+                      style={{ padding: '0 16px', background: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteGroup(group._id, group.title);
+                      }}
+                      title="그룹 삭제"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
