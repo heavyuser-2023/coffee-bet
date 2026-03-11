@@ -176,26 +176,30 @@ export function RaceScreen({ players, onFinish }: Props) {
     }
     
     // 벽면 직하강 방지용 삼각형 톱니(Zigzag Bumper) 추가
-    // 벽에 붙어서 쭉 떨어지는 것을 막기 위해 양쪽 벽에 번갈아 가며 장애물을 설치합니다.
+    // 아이폰13mini(width 375) 기준으로 크기를 비율에 맞게 조정하여 볼 끼임 방지
+    const scaleRatio = width / 375;
+    const bumperRadius = 25 * scaleRatio;
+    const bumperOffsetX = 10 * scaleRatio;
+    
     const wallBumpers = [];
     // 상단 구간 벽 범퍼
     for (let y = 160; y < bottleneckY - 100; y += 100) {
       wallBumpers.push(
         // angle Math.PI: 왼쪽 벽면에 붙어서 꼭지점이 우측(트랙 안쪽)을 향함
-        Bodies.polygon(10, y, 3, 25, { isStatic: true, angle: Math.PI, restitution: 0.5, render: { fillStyle: 'rgba(236,72,153,0.4)' } }) 
+        Bodies.polygon(bumperOffsetX, y, 3, bumperRadius, { isStatic: true, angle: Math.PI, restitution: 0.5, render: { fillStyle: 'rgba(236,72,153,0.4)' } }) 
       );
       wallBumpers.push(
         // angle 0: 오른쪽 벽면에 붙어서 꼭지점이 좌측(트랙 안쪽)을 향함
-        Bodies.polygon(width - 10, y + 50, 3, 25, { isStatic: true, angle: 0, restitution: 0.5, render: { fillStyle: 'rgba(236,72,153,0.4)' } }) 
+        Bodies.polygon(width - bumperOffsetX, y + 50, 3, bumperRadius, { isStatic: true, angle: 0, restitution: 0.5, render: { fillStyle: 'rgba(236,72,153,0.4)' } }) 
       );
     }
     // 하단 구간 벽 범퍼
     for (let y = bottleneckY + 400; y < finalFunnelY - 100; y += 100) {
       wallBumpers.push(
-        Bodies.polygon(10, y, 3, 25, { isStatic: true, angle: Math.PI, restitution: 0.5, render: { fillStyle: 'rgba(16,185,129,0.4)' } })
+        Bodies.polygon(bumperOffsetX, y, 3, bumperRadius, { isStatic: true, angle: Math.PI, restitution: 0.5, render: { fillStyle: 'rgba(16,185,129,0.4)' } })
       );
       wallBumpers.push(
-        Bodies.polygon(width - 10, y + 50, 3, 25, { isStatic: true, angle: 0, restitution: 0.5, render: { fillStyle: 'rgba(16,185,129,0.4)' } })
+        Bodies.polygon(width - bumperOffsetX, y + 50, 3, bumperRadius, { isStatic: true, angle: 0, restitution: 0.5, render: { fillStyle: 'rgba(16,185,129,0.4)' } })
       );
     }
     
