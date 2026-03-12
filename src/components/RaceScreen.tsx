@@ -43,8 +43,9 @@ export function RaceScreen({ players, onFinish }: Props) {
     const engine = Engine.create();
     engineRef.current = engine;
     
-    // Create renderer
-    const width = sceneRef.current.clientWidth;
+    // Create renderer — 고정 폭을 사용하여 모든 기기에서 동일한 레이아웃 보장
+    const FIXED_WIDTH = 375; // iPhone 기준 설계 폭 (고정)
+    const width = FIXED_WIDTH;
     const viewHeight = 500;
     const worldHeight = 3500; // 긴 트랙!
     
@@ -56,9 +57,14 @@ export function RaceScreen({ players, onFinish }: Props) {
         height: viewHeight,
         background: 'transparent',
         wireframes: false,
-        hasBounds: true // Enable bounds for camera panning
+        hasBounds: true, // Enable bounds for camera panning
+        pixelRatio: 1 // 고정 해상도를 위해 pixelRatio 1로 고정
       }
     });
+    
+    // CSS 스케일링: 내부 해상도는 375px이지만 화면 컨테이너 너비에 맞게 확대/축소
+    render.canvas.style.width = '100%';
+    render.canvas.style.height = 'auto';
     renderRef.current = render;
 
     // Boundary walls (약간 안쪽으로 기울어지게 해서 구슬이 구석에 끼는 것을 방지하거나, 공을 안쪽으로 튕겨내는 마찰/restitution 부여)
@@ -176,10 +182,9 @@ export function RaceScreen({ players, onFinish }: Props) {
     }
     
     // 벽면 직하강 방지용 삼각형 톱니(Zigzag Bumper) 추가
-    // 아이폰13mini(width 375) 기준으로 크기를 비율에 맞게 조정하여 볼 끼임 방지
-    const scaleRatio = width / 375;
-    const bumperRadius = 25 * scaleRatio;
-    const bumperOffsetX = 10 * scaleRatio;
+    // 고정 폭(375px)이므로 비율 계산 없이 직접 지정
+    const bumperRadius = 25;
+    const bumperOffsetX = 10;
     
     const wallBumpers = [];
     // 상단 구간 벽 범퍼

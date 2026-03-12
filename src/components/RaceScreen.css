@@ -72,10 +72,9 @@
 
 .canvas-container {
   flex: 1;
-  min-height: 500px;
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
   overflow: hidden;
   padding: 0;
   position: relative;
@@ -83,4 +82,7 @@
 
 .canvas-container canvas {
   border-radius: 24px;
+  width: 100%;
+  height: auto;
+  display: block;
 }
