@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.heavyuser73.coffeebet',
-  appName: 'Coffee Bet App',
+  appName: '커피내기(coffee bet)',
   webDir: 'dist',
   server: {
     androidScheme: 'https',
