@@ -7,6 +7,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:mobile": "VITE_BUILD_TARGET=mobile tsc -b && VITE_BUILD_TARGET=mobile vite build",
+    "cap:sync": "npx cap sync",
+    "cap:build": "npm run build:mobile && npx cap sync",
     "lint": "eslint .",
     "preview": "vite preview",
     "predeploy": "npm run build",
@@ -14,6 +17,10 @@
   },
   "dependencies": {
     "@auth/core": "^0.37.4",
+    "@capacitor/android": "^8.2.0",
+    "@capacitor/cli": "^8.2.0",
+    "@capacitor/core": "^8.2.0",
+    "@capacitor/ios": "^8.2.0",
     "@convex-dev/auth": "^0.0.91",
     "convex": "^1.32.0",
     "convex-helpers": "^0.1.114",

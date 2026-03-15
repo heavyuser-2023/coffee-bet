@@ -2,9 +2,12 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// 모바일(Capacitor) 빌드 시: VITE_BUILD_TARGET=mobile npm run build
+const isMobile = process.env.VITE_BUILD_TARGET === 'mobile'
+
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/coffee-bet/',
+  base: isMobile ? './' : '/coffee-bet/',
   plugins: [
     react(),
     VitePWA({
