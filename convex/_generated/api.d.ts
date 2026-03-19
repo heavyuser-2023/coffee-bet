@@ -12,6 +12,7 @@ import type * as auth from "../auth.js";
 import type * as helpers from "../helpers.js";
 import type * as http from "../http.js";
 import type * as participants from "../participants.js";
+import type * as users from "../users.js";
 
 import type {
   ApiFromModules,
@@ -24,6 +25,7 @@ declare const fullApi: ApiFromModules<{
   helpers: typeof helpers;
   http: typeof http;
   participants: typeof participants;
+  users: typeof users;
 }>;
 
 /**
