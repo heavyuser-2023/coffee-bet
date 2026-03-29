@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Player } from '../types';
+import type { GameMode, Player } from '../types';
 import './ResultScreen.css';
 import { RotateCcw, Trophy, Save } from 'lucide-react';
 import { useMutation, useConvexAuth } from 'convex/react';
@@ -10,12 +10,13 @@ interface Props {
   players: Player[];
   amountsPool: number[];
   raceResults: string[]; // player_id array
+  gameMode: GameMode;
   onRestart: () => void;
 }
 
 const PLAYER_COLORS = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
 
-export function ResultScreen({ players, amountsPool, raceResults, onRestart }: Props) {
+export function ResultScreen({ players, amountsPool, raceResults, gameMode, onRestart }: Props) {
   const { isAuthenticated } = useConvexAuth();
   const saveGroup = useMutation(api.participants.saveGroup);
   
@@ -87,7 +88,9 @@ export function ResultScreen({ players, amountsPool, raceResults, onRestart }: P
               </div>
               <div className="amount">
                 {res.amount > 0 ? (
-                  <span className="amount-value text-danger">{res.amount.toLocaleString()}원</span>
+                  <span className="amount-value text-danger">
+                    {gameMode === 'all-in' ? '모두 쏜다! 💸' : `${res.amount.toLocaleString()}원`}
+                  </span>
                 ) : (
                   <span className="amount-value text-success">공짜! 🥳</span>
                 )}

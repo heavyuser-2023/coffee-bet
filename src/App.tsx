@@ -124,6 +124,7 @@ function App() {
           players={players}
           amountsPool={amountsPool}
           raceResults={raceResults}
+          gameMode={gameMode}
           onRestart={handleRestart}
         />
       )}
