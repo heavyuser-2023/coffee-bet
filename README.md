@@ -20,7 +20,14 @@
 npm run deploy
 ```
 
-### 2. 모바일 네이티브 앱 (Capacitor)
+### 2. Convex 서버 배포
+
+```bash
+# Convex 함수(백엔드)를 프로덕션에 배포
+npx convex deploy
+```
+
+### 3. 모바일 네이티브 앱 (Capacitor)
 
 #### [1단계] 모바일용 웹 에셋 빌드 및 동기화
 
@@ -30,6 +37,8 @@ Capacitor는 빌드된 웹 파일(`dist/`)을 네이티브 컨테이너로 복�
 # 모바일용 빌드(base: './') + 네이티브 프로젝트 동기화 (한 번에)
 npm run cap:build
 ```
+
+> ⚠️ **중요**: 소스 코드(React/TS)를 수정한 후에는 반드시 `npm run cap:build`를 실행해야 Xcode/Android Studio에 변경사항이 반영됩니다. 이 과정 없이 Xcode에서 Run(⌘+R)만 하면 이전 빌드가 실행됩니다.
 
 #### [2단계] Android 실행 및 테스트
 
@@ -52,7 +61,16 @@ npx cap open ios
 
 > **참고**: iOS 빌드 환경 설정 및 App Store 배포를 위해서는 macOS, Xcode, 그리고 유료 Apple Developer 계정($99/년)이 필요합니다.
 
-### 3. 로컬 개발
+#### 코드 수정 → 네이티브 앱 반영 요약
+
+```bash
+# 1. 소스 코드 수정
+# 2. 모바일 빌드 + 동기화
+npm run build:mobile && npx cap sync
+# 3. Xcode(⌘+R) 또는 Android Studio(▶️)에서 실행
+```
+
+### 4. 로컬 개발
 
 ```bash
 # 개발 서버 실행
