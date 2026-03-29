@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useConvexAuth, useMutation } from 'convex/react';
 import { useAuthActions } from '@convex-dev/auth/react';
 import { LogIn, LogOut, User, Trash2 } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
+import { App as CapApp } from '@capacitor/app';
 import { api } from '../../convex/_generated/api';
 import './UserMenu.css';
 
@@ -14,28 +15,70 @@ export function UserMenu() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Capacitor 네이티브 앱에서 OAuth 콜백 URL 수신 처리
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    const listener = CapApp.addListener('appUrlOpen', async ({ url }) => {
+      try {
+        const parsedUrl = new URL(url);
+        const code = parsedUrl.searchParams.get('code');
+        if (code) {
+          await Browser.close();
+          await (signIn as any)(undefined, { code });
+        }
+      } catch (err) {
+        console.error("OAuth 콜백 처리 에러:", err);
+      }
+    });
+
+    return () => { listener.then(l => l.remove()); };
+  }, [signIn]);
+
   if (isLoading) {
     return <div className="user-menu-invisible">Loading...</div>;
   }
 
   const handleSignIn = async () => {
     try {
-      const result = await signIn("google", { redirectTo: "/" });
-      if (result && typeof result === 'object') {
-        const res = result as any;
-        if (res.redirect) {
-          const url = typeof res.redirect === 'string'
-            ? res.redirect
-            : res.redirect.toString();
+      const isNative = Capacitor.isNativePlatform();
+      // 네이티브에서는 Custom URL Scheme으로, 웹에서는 현재 origin + base path로 콜백
+      const redirectTo = isNative
+        ? "com.heavyuser73.coffeebet://callback"
+        : window.location.origin + window.location.pathname;
 
-          // 네이티브 앱에서는 인앱 브라우저 사용 (Apple 심사 Guideline 4 준수)
-          if (Capacitor.isNativePlatform()) {
-            await Browser.open({ url, presentationStyle: 'popover' });
-          } else {
-            window.location.href = url;
-          }
+      // 🔧 네이티브: @convex-dev/auth 라이브러리 내부에서 navigator.product !== "ReactNative"일 때
+      // window.location.href로 WKWebView를 Google OAuth 페이지로 직접 이동시킴.
+      // 이를 방지하기 위해, signIn 호출 동안만 navigator.product를 "ReactNative"로 위장하여
+      // 라이브러리의 자동 리다이렉트를 차단하고, Browser.open() (SFSafariViewController)만 사용.
+      if (isNative) {
+        Object.defineProperty(navigator, 'product', {
+          value: 'ReactNative',
+          configurable: true,
+        });
+      }
+
+      let result: any;
+      try {
+        result = await signIn("google", { redirectTo });
+      } finally {
+        // navigator.product 원래 값 복원
+        if (isNative) {
+          Object.defineProperty(navigator, 'product', {
+            value: 'Gecko',
+            configurable: true,
+          });
         }
       }
+
+      // 네이티브: SFSafariViewController에서 OAuth 진행 (Apple 가이드라인 준수)
+      if (isNative && result?.redirect) {
+        const url = typeof result.redirect === 'string'
+          ? result.redirect
+          : result.redirect.toString();
+        await Browser.open({ url, presentationStyle: 'popover' });
+      }
+      // 웹: 라이브러리가 자동으로 window.location.href 리다이렉트 처리
     } catch (err) {
       console.error("로그인 에러:", err);
     }
