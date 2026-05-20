@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { Player, GameMode } from '../types';
 import './SetupScreen.css';
-import { Users, Plus, X, Shuffle, DollarSign, Play, DownloadCloud, Save } from 'lucide-react';
+import { Users, Plus, X, Shuffle, DollarSign, Play, DownloadCloud, Save, GripVertical } from 'lucide-react';
 import { useQuery, useMutation, useConvexAuth } from 'convex/react';
 
 import { api } from '../../convex/_generated/api';
@@ -14,6 +14,7 @@ interface Props {
   gameMode: GameMode;
   setGameMode: (mode: GameMode) => void;
   onStart: (amounts: number[]) => void;
+  onSignIn: () => Promise<void>;
 }
 
 export function SetupScreen({
@@ -23,9 +24,10 @@ export function SetupScreen({
   setTotalAmount,
   gameMode,
   setGameMode,
-  onStart
+  onStart,
+  onSignIn
 }: Props) {
-  const { isAuthenticated } = useConvexAuth();
+  const { isAuthenticated, isLoading } = useConvexAuth();
   // 로그인된 경우 저장된 그룹 목록을 가져옴
   const savedGroups = useQuery(api.participants.getGroups, isAuthenticated ? undefined : "skip");
   const saveGroup = useMutation(api.participants.saveGroup);
@@ -57,19 +59,22 @@ export function SetupScreen({
     }
   };
 
-  const openLoadModal = () => {
+  const openLoadModal = async () => {
     if (!isAuthenticated) {
-      showToast("로그인을 하시면 저장된 참가자 그룹을 불러올 수 있습니다.");
+      try {
+        localStorage.setItem('coffeebet_pending_load', 'true');
+        showToast("로그인 후 불러오기 창이 열립니다. 로그인을 진행합니다...");
+        await onSignIn();
+      } catch (e) {
+        console.error(e);
+        showToast("로그인 진행 중 오류가 발생했습니다.");
+      }
       return;
     }
     setIsModalOpen(true);
   };
 
   const openSaveModal = () => {
-    if (!isAuthenticated) {
-      showToast("참가자를 저장하려면 상단의 로그인 버튼을 눌러주세요.");
-      return;
-    }
     if (players.length === 0) {
       showToast("저장할 참가자가 없습니다.");
       return;
@@ -83,6 +88,26 @@ export function SetupScreen({
       return;
     }
     
+    if (!isAuthenticated) {
+      try {
+        const pendingData = {
+          players,
+          totalAmount,
+          gameMode,
+          title: saveTitle.trim()
+        };
+        localStorage.setItem('coffeebet_pending_save', JSON.stringify(pendingData));
+        showToast("로그인 후 그룹 저장이 완료됩니다. 로그인을 진행합니다...");
+        setIsSaveModalOpen(false);
+        setSaveTitle("");
+        await onSignIn();
+      } catch (e) {
+        console.error(e);
+        showToast("로그인 진행 중 오류가 발생했습니다.");
+      }
+      return;
+    }
+
     try {
       await saveGroup({
         title: saveTitle.trim(),
@@ -142,6 +167,73 @@ export function SetupScreen({
     }
   }, [gameMode, players.length, totalAmount]); 
 
+  // 로그인 성공 후 로컬 스토리지에 있는 백업 데이터를 자동 저장 처리 및 불러오기 연계
+  useEffect(() => {
+    if (isAuthenticated && !isLoading) {
+      // 1. 저장하기 보류 확인
+      const pendingSave = localStorage.getItem('coffeebet_pending_save');
+      if (pendingSave) {
+        try {
+          const parsed = JSON.parse(pendingSave);
+          if (parsed.title) {
+            const doPendingSave = async () => {
+              try {
+                await saveGroup({
+                  title: parsed.title,
+                  players: parsed.players
+                });
+                showToast(`'${parsed.title}' (이)가 로그인 계정에 저장되었습니다.`);
+              } catch (e) {
+                console.error("자동 저장 에러:", e);
+                showToast("로그인 후 자동 저장 중 오류가 발생했습니다.");
+              } finally {
+                localStorage.removeItem('coffeebet_pending_save');
+              }
+            };
+            doPendingSave();
+          }
+        } catch (e) {
+          console.error("임시 저장 파싱 에러:", e);
+          localStorage.removeItem('coffeebet_pending_save');
+        }
+      }
+
+      // 2. 불러오기 보류 확인
+      const pendingLoad = localStorage.getItem('coffeebet_pending_load');
+      if (pendingLoad === 'true') {
+        setIsModalOpen(true);
+        localStorage.removeItem('coffeebet_pending_load');
+      }
+    }
+  }, [isAuthenticated, isLoading, saveGroup]);
+
+  // 드래그앤드롭 상태
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedIndex(index);
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === index) return;
+    
+    const newPlayers = [...players];
+    const draggedItem = newPlayers[draggedIndex];
+    newPlayers.splice(draggedIndex, 1);
+    newPlayers.splice(index, 0, draggedItem);
+    
+    setDraggedIndex(index);
+    setPlayers(newPlayers);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+  };
+
   const handleAddPlayer = () => {
     if (players.length >= 20) return;
     const newId = Date.now().toString();
@@ -158,11 +250,6 @@ export function SetupScreen({
   };
 
   const handleStart = () => {
-    if (totalAmount <= 0) {
-      alert("금액을 입력해주세요.");
-      return;
-    }
-    
     let finalAmounts: number[] = [];
     if (gameMode === 'all-in') {
       // 몰빵의 경우: 1명만 전체 금액을 내게 하거나 (게임상 꼴찌), 배열을 만들면
@@ -252,7 +339,20 @@ export function SetupScreen({
           
           <div className="player-list">
             {players.map((p, index) => (
-              <div key={p.id} className="player-item fadeIn">
+              <div 
+                key={p.id} 
+                className={`player-item fadeIn ${draggedIndex === index ? 'dragging' : ''}`}
+                draggable
+                onDragStart={(e) => handleDragStart(e, index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDragEnd={handleDragEnd}
+              >
+                <div 
+                  className="drag-handle" 
+                  style={{ display: 'flex', alignItems: 'center', color: '#64748b', cursor: 'grab', paddingRight: '4px', transition: 'color 0.2s' }}
+                >
+                  <GripVertical size={18} />
+                </div>
                 <div className="player-number">{index + 1}</div>
                 <input 
                   type="text" 
@@ -379,6 +479,47 @@ export function SetupScreen({
               onKeyDown={(e) => e.key === 'Enter' && handleSaveGroup()}
               autoFocus
             />
+
+            {/* 기존 저장된 목록 불러오기/덮어쓰기 연계 */}
+            <div className="modal-saved-groups-section" style={{ marginTop: '20px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '16px', textAlign: 'left' }}>
+              <h4 style={{ fontSize: '0.95rem', fontWeight: '600', marginBottom: '10px', color: '#e2e8f0' }}>기존 저장된 그룹 목록 (클릭 시 이름 자동 입력)</h4>
+              {!isAuthenticated ? (
+                <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
+                  로그인하시면 기존 저장된 목록을 조회하고 불러오거나 덮어쓸 수 있습니다.
+                </p>
+              ) : !savedGroups ? (
+                <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>불러오는 중...</p>
+              ) : savedGroups.length === 0 ? (
+                <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>저장된 그룹이 없습니다.</p>
+              ) : (
+                <div className="modal-group-list" style={{ maxHeight: '150px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {savedGroups.map((group) => (
+                    <div 
+                      key={group._id} 
+                      className="modal-group-item" 
+                      onClick={() => setSaveTitle(group.title)}
+                      style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center', 
+                        padding: '8px 12px', 
+                        background: 'rgba(255, 255, 255, 0.03)', 
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        transition: 'background 0.2s'
+                      }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <span style={{ fontWeight: '500', fontSize: '0.9rem', color: '#f1f5f9' }}>{group.title}</span>
+                        <span style={{ fontSize: '0.75rem', color: '#94a3b8', marginLeft: '6px' }}>({group.players.length}명)</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="modal-actions" style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
               <button className="btn-close" onClick={() => setIsSaveModalOpen(false)} style={{ flex: 1, background: 'rgba(255,255,255,0.1)', border: 'none' }}>취소</button>
               <button className="btn-close" onClick={handleSaveGroup} style={{ flex: 1 }}>저장 확인</button>

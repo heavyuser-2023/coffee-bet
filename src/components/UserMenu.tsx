@@ -8,7 +8,11 @@ import { App as CapApp } from '@capacitor/app';
 import { api } from '../../convex/_generated/api';
 import './UserMenu.css';
 
-export function UserMenu() {
+interface UserMenuProps {
+  onSignIn: () => Promise<void>;
+}
+
+export function UserMenu({ onSignIn }: UserMenuProps) {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const { signIn, signOut } = useAuthActions();
   const deleteAccount = useMutation(api.users.deleteAccount);
@@ -38,51 +42,6 @@ export function UserMenu() {
   if (isLoading) {
     return <div className="user-menu-invisible">Loading...</div>;
   }
-
-  const handleSignIn = async () => {
-    try {
-      const isNative = Capacitor.isNativePlatform();
-      // 네이티브에서는 Custom URL Scheme으로, 웹에서는 현재 origin + base path로 콜백
-      const redirectTo = isNative
-        ? "com.heavyuser73.coffeebet://callback"
-        : window.location.origin + window.location.pathname;
-
-      // 🔧 네이티브: @convex-dev/auth 라이브러리 내부에서 navigator.product !== "ReactNative"일 때
-      // window.location.href로 WKWebView를 Google OAuth 페이지로 직접 이동시킴.
-      // 이를 방지하기 위해, signIn 호출 동안만 navigator.product를 "ReactNative"로 위장하여
-      // 라이브러리의 자동 리다이렉트를 차단하고, Browser.open() (SFSafariViewController)만 사용.
-      if (isNative) {
-        Object.defineProperty(navigator, 'product', {
-          value: 'ReactNative',
-          configurable: true,
-        });
-      }
-
-      let result: any;
-      try {
-        result = await signIn("google", { redirectTo });
-      } finally {
-        // navigator.product 원래 값 복원
-        if (isNative) {
-          Object.defineProperty(navigator, 'product', {
-            value: 'Gecko',
-            configurable: true,
-          });
-        }
-      }
-
-      // 네이티브: SFSafariViewController에서 OAuth 진행 (Apple 가이드라인 준수)
-      if (isNative && result?.redirect) {
-        const url = typeof result.redirect === 'string'
-          ? result.redirect
-          : result.redirect.toString();
-        await Browser.open({ url, presentationStyle: 'popover' });
-      }
-      // 웹: 라이브러리가 자동으로 window.location.href 리다이렉트 처리
-    } catch (err) {
-      console.error("로그인 에러:", err);
-    }
-  };
 
   const handleDeleteAccount = async () => {
     setIsDeleting(true);
@@ -122,7 +81,7 @@ export function UserMenu() {
           </button>
         </div>
       ) : (
-        <button className="btn-login-small" onClick={handleSignIn}>
+        <button className="btn-login-small" onClick={onSignIn}>
           <LogIn size={16} className="icon-mr" /> 로그인
         </button>
       )}

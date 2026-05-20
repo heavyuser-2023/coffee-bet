@@ -357,3 +357,44 @@
   background: rgba(0, 0, 0, 0.5);
   box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.2);
 }
+
+/* 저장 모달 내 기존 목록 아이템 호버 및 스크롤바 스타일 */
+.modal-group-item:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(139, 92, 246, 0.25) !important;
+}
+
+.modal-group-list::-webkit-scrollbar {
+  width: 6px;
+}
+.modal-group-list::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+.modal-group-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+.modal-group-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* 드래그 앤 드롭 아이템 스타일 */
+.player-item {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.player-item.dragging {
+  opacity: 0.4;
+  transform: scale(0.98);
+  border: 1px dashed var(--primary) !important;
+  background: rgba(139, 92, 246, 0.05) !important;
+}
+
+.drag-handle:hover {
+  color: var(--primary) !important;
+}
+
+.drag-handle:active {
+  cursor: grabbing !important;
+}

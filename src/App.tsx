@@ -4,6 +4,9 @@ import { SetupScreen } from './components/SetupScreen'
 import { RaceScreen } from './components/RaceScreen'
 import { ResultScreen } from './components/ResultScreen'
 import type { GameMode, Player, GameState } from './types'
+import { useAuthActions } from '@convex-dev/auth/react'
+import { Capacitor } from '@capacitor/core'
+import { Browser } from '@capacitor/browser'
 
 // PWA 설치 프롬프트 이벤트를 위한 타입 확장
 interface BeforeInstallPromptEvent extends Event {
@@ -18,15 +21,92 @@ interface BeforeInstallPromptEvent extends Event {
 import { UserMenu } from './components/UserMenu'
 
 function App() {
+  const { signIn } = useAuthActions();
   const [gameState, setGameState] = useState<GameState>('setup');
-  const [players, setPlayers] = useState<Player[]>([
-    { id: '1', name: '참가자 1' },
-    { id: '2', name: '참가자 2' }
-  ]);
-  const [totalAmount, setTotalAmount] = useState<number>(10000);
-  const [gameMode, setGameMode] = useState<GameMode>('all-in');
+  const [players, setPlayers] = useState<Player[]>(() => {
+    const pending = localStorage.getItem('coffeebet_pending_save');
+    if (pending) {
+      try {
+        const parsed = JSON.parse(pending);
+        if (parsed.players && Array.isArray(parsed.players)) {
+          return parsed.players;
+        }
+      } catch (e) {
+        console.error("임시 데이터 파싱 에러:", e);
+      }
+    }
+    return [
+      { id: '1', name: '참가자 1' },
+      { id: '2', name: '참가자 2' }
+    ];
+  });
+  const [totalAmount, setTotalAmount] = useState<number>(() => {
+    const pending = localStorage.getItem('coffeebet_pending_save');
+    if (pending) {
+      try {
+        const parsed = JSON.parse(pending);
+        if (typeof parsed.totalAmount === 'number') {
+          return parsed.totalAmount;
+        }
+      } catch (e) {
+        console.error("임시 데이터 파싱 에러:", e);
+      }
+    }
+    return 10000;
+  });
+  const [gameMode, setGameMode] = useState<GameMode>(() => {
+    const pending = localStorage.getItem('coffeebet_pending_save');
+    if (pending) {
+      try {
+        const parsed = JSON.parse(pending);
+        if (parsed.gameMode === 'all-in' || parsed.gameMode === 'random') {
+          return parsed.gameMode;
+        }
+      } catch (e) {
+        console.error("임시 데이터 파싱 에러:", e);
+      }
+    }
+    return 'all-in';
+  });
   const [amountsPool, setAmountsPool] = useState<number[]>([]);
   const [raceResults, setRaceResults] = useState<string[]>([]); // array of player ids in order of finish
+
+  const handleSignIn = async () => {
+    try {
+      const isNative = Capacitor.isNativePlatform();
+      const redirectTo = isNative
+        ? "com.heavyuser73.coffeebet://callback"
+        : window.location.origin + window.location.pathname;
+
+      if (isNative) {
+        Object.defineProperty(navigator, 'product', {
+          value: 'ReactNative',
+          configurable: true,
+        });
+      }
+
+      let result: any;
+      try {
+        result = await signIn("google", { redirectTo });
+      } finally {
+        if (isNative) {
+          Object.defineProperty(navigator, 'product', {
+            value: 'Gecko',
+            configurable: true,
+          });
+        }
+      }
+
+      if (isNative && result?.redirect) {
+        const url = typeof result.redirect === 'string'
+          ? result.redirect
+          : result.redirect.toString();
+        await Browser.open({ url, presentationStyle: 'popover' });
+      }
+    } catch (err) {
+      console.error("로그인 에러:", err);
+    }
+  };
 
   const handleStartRace = (amounts: number[]) => {
     // 순위별 금액 배열 (내림차순 정렬 혹은 섞인 순서 등 상황에 맞게)
@@ -96,7 +176,7 @@ function App() {
 
       {/* 상단 로그인/로그아웃 메뉴 */}
       <div className="top-menu-bar" style={{ marginTop: 'env(safe-area-inset-top)', marginBottom: '16px' }}>
-        <UserMenu />
+        <UserMenu onSignIn={handleSignIn} />
       </div>
 
       {gameState === 'setup' && (
@@ -108,6 +188,7 @@ function App() {
           gameMode={gameMode}
           setGameMode={setGameMode}
           onStart={handleStartRace}
+          onSignIn={handleSignIn}
         />
       )}
       

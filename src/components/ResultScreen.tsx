@@ -55,12 +55,21 @@ export function ResultScreen({ players, amountsPool, raceResults, gameMode, onRe
     }
   };
   // 매핑 결과 계산
+  const totalBill = amountsPool.reduce((a, b) => a + b, 0);
+  const hasAmount = totalBill > 0;
+
   // raceResults의 순서대로 amountsPool의 금액을 받음
   const finalResults = raceResults.map((id, index) => {
     const player = players.find(p => p.id === id)!;
     const amount = amountsPool[index] || 0;
     const color = PLAYER_COLORS[players.findIndex(p => p.id === id) % PLAYER_COLORS.length];
-    return { player, amount, rank: index + 1, color };
+    const rank = index + 1;
+    
+    // 금액이 지정된 경우: 해당 순위의 배분 금액이 0원보다 크면 벌칙자
+    // 금액이 지정되지 않은 경우: 레이스의 최하위(마지막 인덱스)를 벌칙자로 판정
+    const isLoser = hasAmount ? (amount > 0) : (index === raceResults.length - 1);
+
+    return { player, amount, rank, color, isLoser };
   });
 
   return (
@@ -75,11 +84,11 @@ export function ResultScreen({ players, amountsPool, raceResults, gameMode, onRe
           {finalResults.map((res, index) => (
             <div 
               key={res.player.id} 
-              className={`result-item fadeIn ${res.amount > 0 ? 'last-place' : ''}`}
+              className={`result-item fadeIn ${res.isLoser ? 'last-place' : ''}`}
               style={{ animationDelay: `${index * 0.15}s` }}
             >
               <div className="rank">
-                {res.amount > 0 ? <Trophy className="icon-gold" size={24} /> : 
+                {res.isLoser ? <Trophy className="icon-gold" size={24} /> : 
                  <span className="rank-text">{res.rank}위</span>}
               </div>
               <div className="player-info">
@@ -87,21 +96,28 @@ export function ResultScreen({ players, amountsPool, raceResults, gameMode, onRe
                 <span className="name">{res.player.name}</span>
               </div>
               <div className="amount">
-                {res.amount > 0 ? (
+                {res.isLoser ? (
                   <span className="amount-value text-danger">
-                    {gameMode === 'all-in' ? '모두 쏜다! 💸' : `${res.amount.toLocaleString()}원`}
+                    {hasAmount 
+                      ? (gameMode === 'all-in' ? `${res.amount.toLocaleString()}원 (모두 쏜다!) 💸` : `${res.amount.toLocaleString()}원`) 
+                      : '모두 쏜다! 💸'
+                    }
                   </span>
                 ) : (
-                  <span className="amount-value text-success">공짜! 🥳</span>
+                  <span className="amount-value text-success">
+                    {hasAmount ? '공짜! 🥳' : '통과! 🎉'}
+                  </span>
                 )}
               </div>
             </div>
           ))}
         </div>
         
-        <div className="summary">
-          총 결제 금액: <strong>{amountsPool.reduce((a, b) => a + b, 0).toLocaleString()}원</strong>
-        </div>
+        {hasAmount && (
+          <div className="summary">
+            총 결제 금액: <strong>{totalBill.toLocaleString()}원</strong>
+          </div>
+        )}
       </div>
 
       <div className="action-buttons">
