@@ -98,9 +98,9 @@ export function ResultScreen({ players, amountsPool, raceResults, gameMode, onRe
               <div className="amount">
                 {res.isLoser ? (
                   <span className="amount-value text-danger">
-                    {hasAmount 
-                      ? (gameMode === 'all-in' ? `${res.amount.toLocaleString()}원 (모두 쏜다!) 💸` : `${res.amount.toLocaleString()}원`) 
-                      : '모두 쏜다! 💸'
+                    {gameMode === 'all-in'
+                      ? '모두 쏜다! 💸'
+                      : (hasAmount ? `${res.amount.toLocaleString()}원` : '모두 쏜다! 💸')
                     }
                   </span>
                 ) : (
@@ -113,7 +113,7 @@ export function ResultScreen({ players, amountsPool, raceResults, gameMode, onRe
           ))}
         </div>
         
-        {hasAmount && (
+        {hasAmount && gameMode !== 'all-in' && (
           <div className="summary">
             총 결제 금액: <strong>{totalBill.toLocaleString()}원</strong>
           </div>
