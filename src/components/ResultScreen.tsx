@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import type { GameMode, Player } from '../types';
+import type { GameMode, Player, TrajectoryFrame } from '../types';
 import './ResultScreen.css';
-import { RotateCcw, Trophy, Save } from 'lucide-react';
+import { RotateCcw, Trophy, Save, Share2 } from 'lucide-react';
 import { useMutation, useConvexAuth } from 'convex/react';
 
 import { api } from '../../convex/_generated/api';
@@ -12,24 +12,35 @@ interface Props {
   raceResults: string[]; // player_id array
   gameMode: GameMode;
   onRestart: () => void;
+  trajectory?: TrajectoryFrame[];
+  deviceId: string;
 }
 
 const PLAYER_COLORS = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
 
-export function ResultScreen({ players, amountsPool, raceResults, gameMode, onRestart }: Props) {
+export function ResultScreen({ 
+  players, 
+  amountsPool, 
+  raceResults, 
+  gameMode, 
+  onRestart,
+  trajectory,
+  deviceId
+}: Props) {
   const { isAuthenticated } = useConvexAuth();
   const saveGroup = useMutation(api.participants.saveGroup);
+  const saveReplayMutation = useMutation(api.replays.saveReplay);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [groupTitle, setGroupTitle] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
 
   const handleSaveGroup = () => {
     if (!isAuthenticated) {
       alert("참가자를 저장하려면 상단의 로그인 버튼을 눌러주세요.");
       return;
     }
-    // 로그인 되어 있으면 모달 열기
     setIsModalOpen(true);
   };
 
@@ -54,6 +65,79 @@ export function ResultScreen({ players, amountsPool, raceResults, gameMode, onRe
       setIsSaving(false);
     }
   };
+
+  const copyToClipboard = async (url: string) => {
+    if (navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(url);
+        alert("리플레이 공유 링크가 클립보드에 복사되었습니다! 🔗");
+        return;
+      } catch (err) {
+        console.error("클립보드 API 복사 실패:", err);
+      }
+    }
+    
+    // Fallback 복사 방식
+    const tempInput = document.createElement('input');
+    tempInput.value = url;
+    document.body.appendChild(tempInput);
+    tempInput.select();
+    try {
+      document.execCommand('copy');
+      alert("리플레이 공유 링크가 복사되었습니다! 🔗");
+    } catch (err) {
+      console.error("Fallback 복사 실패:", err);
+      alert(`링크 복사에 실패했습니다. 주소를 직접 복사해주세요:\n${url}`);
+    }
+    document.body.removeChild(tempInput);
+  };
+
+  const handleShareReplay = async () => {
+    if (!trajectory || trajectory.length === 0) {
+      alert("기록된 레이스 리플레이 데이터가 없습니다.");
+      return;
+    }
+    
+    setIsSharing(true);
+    try {
+      // Convex Mutation 호출
+      const replayId = await saveReplayMutation({
+        deviceId,
+        players: players.map(p => ({ id: p.id, name: p.name })),
+        amountsPool,
+        gameMode,
+        raceResults,
+        trajectory: JSON.stringify(trajectory)
+      });
+
+      // 리플레이 URL 빌드
+      const shareUrl = `${window.location.origin}${window.location.pathname}?replay=${replayId}`;
+
+      // Web Share API를 지원하면 기기 네이티브 공유창 활성화
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: 'Coffee Bet - 마블 레이스 결과',
+            text: '오늘의 커피 룰렛 결과 리플레이를 지금 바로 확인해보세요!',
+            url: shareUrl,
+          });
+        } catch (shareErr) {
+          // 공유를 취소하지 않은 다른 오류 시에만 클립보드로 복사 처리
+          if (shareErr instanceof Error && shareErr.name !== 'AbortError') {
+            await copyToClipboard(shareUrl);
+          }
+        }
+      } else {
+        await copyToClipboard(shareUrl);
+      }
+    } catch (e) {
+      console.error("리플레이 저장 중 오류:", e);
+      alert("리플레이 생성 및 업로드에 실패했습니다.");
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
   // 매핑 결과 계산
   const totalBill = amountsPool.reduce((a, b) => a + b, 0);
   const hasAmount = totalBill > 0;
@@ -121,15 +205,25 @@ export function ResultScreen({ players, amountsPool, raceResults, gameMode, onRe
       </div>
 
       <div className="action-buttons">
-        <div className="save-group-section">
-          <button className="btn-secondary save-group-btn" onClick={handleSaveGroup} disabled={isSaving}>
+        <button 
+          className="share-replay-btn" 
+          onClick={handleShareReplay} 
+          disabled={isSharing || !trajectory || trajectory.length === 0}
+        >
+          <Share2 size={20} className="icon-mr" /> 
+          {isSharing ? "공유 링크 생성 중..." : "게임 리플레이 공유"}
+        </button>
+
+        <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
+          <button className="btn-secondary save-group-btn" onClick={handleSaveGroup} disabled={isSaving} style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
             <Save size={20} className="icon-mr" /> 
             {isSaving ? "저장 중..." : "참가자 저장"}
           </button>
+          
+          <button className="btn-primary restart-btn" onClick={onRestart} style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+            <RotateCcw size={20} className="icon-mr" /> 다시 하기
+          </button>
         </div>
-        <button className="btn-primary restart-btn" onClick={onRestart}>
-          <RotateCcw size={20} className="icon-mr" /> 다시 하기
-        </button>
       </div>
 
       {isModalOpen && (

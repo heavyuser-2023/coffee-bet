@@ -137,7 +137,47 @@
 .action-buttons {
   display: flex;
   flex-direction: column;
+  gap: 12px;
+  width: 100%;
   margin-top: auto;
+}
+
+.share-replay-btn {
+  width: 100%;
+  padding: 14px 24px;
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  color: #c084fc;
+  border-radius: 12px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.1);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.share-replay-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: white;
+  border-color: transparent;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+}
+
+.share-replay-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.share-replay-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-secondary);
+  box-shadow: none;
+  transform: none;
 }
 
 /* Save Group Section */

@@ -3,10 +3,12 @@ import './App.css'
 import { SetupScreen } from './components/SetupScreen'
 import { RaceScreen } from './components/RaceScreen'
 import { ResultScreen } from './components/ResultScreen'
-import type { GameMode, Player, GameState } from './types'
+import type { GameMode, Player, GameState, TrajectoryFrame } from './types'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { Capacitor } from '@capacitor/core'
 import { Browser } from '@capacitor/browser'
+import { useQuery } from 'convex/react'
+import { api } from '../convex/_generated/api'
 
 // PWA 설치 프롬프트 이벤트를 위한 타입 확장
 interface BeforeInstallPromptEvent extends Event {
@@ -70,6 +72,44 @@ function App() {
   });
   const [amountsPool, setAmountsPool] = useState<number[]>([]);
   const [raceResults, setRaceResults] = useState<string[]>([]); // array of player ids in order of finish
+  const [trajectory, setTrajectory] = useState<TrajectoryFrame[]>([]); // 레이스 궤적 기록 저장
+
+  // 기기 식별자 관리
+  const [deviceId] = useState<string>(() => {
+    let id = localStorage.getItem('coffeebet_device_id');
+    if (!id) {
+      id = 'dev_' + Math.random().toString(36).substring(2, 11) + '_' + Date.now().toString(36);
+      localStorage.setItem('coffeebet_device_id', id);
+    }
+    return id;
+  });
+
+  // 리플레이용 상태 관리
+  const [replayId, setReplayId] = useState<string | null>(null);
+  const replayData = useQuery(api.replays.getReplay, replayId ? { id: replayId } : 'skip');
+
+  // URL에서 리플레이 파라미터 감지
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const repId = params.get('replay');
+    if (repId) {
+      setReplayId(repId);
+      setGameState('replay');
+    }
+  }, []);
+
+  // 리플레이 데이터 로드 감시
+  useEffect(() => {
+    if (replayId && replayData !== undefined) {
+      if (replayData === null) {
+        alert("유효하지 않은 리플레이 링크입니다.");
+        // 파라미터 제거 및 화면 셋업 복원
+        window.history.replaceState({}, document.title, window.location.pathname);
+        setReplayId(null);
+        setGameState('setup');
+      }
+    }
+  }, [replayData, replayId]);
 
   const handleSignIn = async () => {
     try {
@@ -109,14 +149,15 @@ function App() {
   };
 
   const handleStartRace = (amounts: number[]) => {
-    // 순위별 금액 배열 (내림차순 정렬 혹은 섞인 순서 등 상황에 맞게)
-    // SetupScreen에서 이미 정해서 넘겨줌
     setAmountsPool(amounts);
     setGameState('race');
   }
 
-  const handleRaceFinish = (results: string[]) => {
+  const handleRaceFinish = (results: string[], capturedTrajectory?: TrajectoryFrame[]) => {
     setRaceResults(results);
+    if (capturedTrajectory) {
+      setTrajectory(capturedTrajectory);
+    }
     setGameState('result');
   }
 
@@ -124,6 +165,20 @@ function App() {
     setGameState('setup');
     setAmountsPool([]);
     setRaceResults([]);
+    setTrajectory([]);
+  }
+
+  const handleExitReplay = () => {
+    window.history.replaceState({}, document.title, window.location.pathname);
+    setReplayId(null);
+    setGameState('setup');
+  }
+
+  const handleSelectReplay = (id: string) => {
+    setReplayId(id);
+    setGameState('replay');
+    const shareUrl = `${window.location.origin}${window.location.pathname}?replay=${id}`;
+    window.history.replaceState({}, document.title, shareUrl);
   }
 
   // PWA 설치 상태 관리
@@ -131,9 +186,7 @@ function App() {
 
   useEffect(() => {
     const handler = (e: Event) => {
-      // Chrome에서 기본 설치 팝업이 바로 뜨는 것을 방지
       e.preventDefault();
-      // 이벤트를 보관하여 나중에 버튼 클릭 시 사용
       setDeferredPrompt(e as BeforeInstallPromptEvent);
     };
 
@@ -147,10 +200,8 @@ function App() {
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
     
-    // 설치 프롬프트 띄우기
     deferredPrompt.prompt();
     
-    // 사용자의 반응 응답(설치/취소) 대기
     const { outcome } = await deferredPrompt.userChoice;
     if (outcome === 'accepted') {
       console.log('사용자가 앱 설치를 동의했습니다.');
@@ -158,13 +209,14 @@ function App() {
       console.log('사용자가 앱 설치를 취소했습니다.');
     }
     
-    // 한 번 처리 후에는 다시 쓸 수 없으므로 초기화
     setDeferredPrompt(null);
   };
 
+  const isReplayLoading = replayId && replayData === undefined;
+
   return (
     <div className="app-container">
-      {/* 설치 유도 버튼 (설치 가능한 상태일 때만 메인화면에 표시) */}
+      {/* 설치 유도 버튼 */}
       {deferredPrompt && gameState === 'setup' && (
         <button 
           onClick={handleInstallClick} 
@@ -175,11 +227,21 @@ function App() {
       )}
 
       {/* 상단 로그인/로그아웃 메뉴 */}
-      <div className="top-menu-bar" style={{ marginTop: 'env(safe-area-inset-top)', marginBottom: '16px' }}>
-        <UserMenu onSignIn={handleSignIn} />
-      </div>
+      {gameState !== 'replay' && (
+        <div className="top-menu-bar" style={{ marginTop: 'env(safe-area-inset-top)', marginBottom: '16px' }}>
+          <UserMenu onSignIn={handleSignIn} />
+        </div>
+      )}
 
-      {gameState === 'setup' && (
+      {/* 로딩 표시 */}
+      {isReplayLoading && (
+        <div className="loading-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '80vh', gap: '20px' }}>
+          <div className="spinner" style={{ width: '50px', height: '50px', border: '5px solid rgba(255,255,255,0.1)', borderTopColor: '#f59e0b', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+          <p style={{ color: '#94a3b8', fontSize: '1.1rem' }}>리플레이를 불러오는 중입니다...</p>
+        </div>
+      )}
+
+      {!isReplayLoading && gameState === 'setup' && (
         <SetupScreen 
           players={players} 
           setPlayers={setPlayers}
@@ -189,10 +251,12 @@ function App() {
           setGameMode={setGameMode}
           onStart={handleStartRace}
           onSignIn={handleSignIn}
+          deviceId={deviceId}
+          onSelectReplay={handleSelectReplay}
         />
       )}
       
-      {gameState === 'race' && (
+      {!isReplayLoading && gameState === 'race' && (
         <RaceScreen 
           players={players}
           amountsPool={amountsPool}
@@ -200,17 +264,31 @@ function App() {
         />
       )}
 
-      {gameState === 'result' && (
+      {!isReplayLoading && gameState === 'result' && (
         <ResultScreen 
           players={players}
           amountsPool={amountsPool}
           raceResults={raceResults}
           gameMode={gameMode}
           onRestart={handleRestart}
+          trajectory={trajectory}
+          deviceId={deviceId}
+        />
+      )}
+
+      {!isReplayLoading && gameState === 'replay' && replayData && (
+        <RaceScreen 
+          players={replayData.players}
+          amountsPool={replayData.amountsPool}
+          onFinish={() => {}}
+          isReplay={true}
+          replayTrajectory={JSON.parse(replayData.trajectory)}
+          raceResults={replayData.raceResults}
+          onExitReplay={handleExitReplay}
         />
       )}
     </div>
   )
 }
 
-export default App
+export default App;

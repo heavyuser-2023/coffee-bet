@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import Matter from 'matter-js';
-import type { Player } from '../types';
+import type { Player, TrajectoryFrame } from '../types';
 import './RaceScreen.css';
+import { Play, Pause, LogOut } from 'lucide-react';
 
 interface Props {
   players: Player[];
   amountsPool: number[];
-  onFinish: (results: string[]) => void;
+  onFinish: (results: string[], trajectory?: TrajectoryFrame[]) => void;
+  isReplay?: boolean;
+  replayTrajectory?: TrajectoryFrame[];
+  raceResults?: string[]; // 리플레이 시 순위 보장을 위해 필요
+  onExitReplay?: () => void;
 }
 
 const PLAYER_COLORS = [
@@ -16,25 +21,70 @@ const PLAYER_COLORS = [
   '#0ea5e9', '#22c55e', '#e11d48', '#4f46e5', '#ca8a04'
 ];
 
-export function RaceScreen({ players, onFinish }: Props) {
+const DEFAULT_TRAJECTORY: TrajectoryFrame[] = [];
+const DEFAULT_RESULTS: string[] = [];
+
+export function RaceScreen({ 
+  players, 
+  onFinish, 
+  isReplay = false, 
+  replayTrajectory = DEFAULT_TRAJECTORY, 
+  raceResults = DEFAULT_RESULTS, 
+  onExitReplay 
+}: Props) {
   const sceneRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<Matter.Engine | null>(null);
   const renderRef = useRef<Matter.Render | null>(null);
   const [finishedPlayers, setFinishedPlayers] = useState<string[]>([]);
   const finishedRef = useRef<string[]>([]);
   
-  const runnerRef = useRef<Matter.Runner | null>(null);
+  const loopTimeoutIdRef = useRef<number | null>(null);
   
   // 선두(1위) 구슬 라벨 추적 레이더
   const leaderRef = useRef<string | null>(null);
-  const slowMoTimeoutRef = useRef<number | null>(null); // NodeJS.Timeout 타입 대신 브라우저 환경 호환을 위해 number 사용
+  const slowMoTimeoutRef = useRef<number | null>(null);
+  const finishTimeoutRef = useRef<number | null>(null);
+
+  // 리플레이 전용 상태 및 레퍼런스
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [replayTimeState, setReplayTimeState] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState<1 | 2 | 4>(1);
+
+  const isPlayingRef = useRef(true);
+  const replayTimeRef = useRef(0);
+  const playbackRateRef = useRef<1 | 2 | 4>(1);
+  const trajectoryRef = useRef<TrajectoryFrame[]>([]);
+  const lastCaptureTimeRef = useRef(0);
+
+  const totalDuration = replayTrajectory.length > 0 
+    ? replayTrajectory[replayTrajectory.length - 1].t 
+    : 0;
+
+  // React state와 Ref 동기화
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
+  useEffect(() => {
+    playbackRateRef.current = playbackRate;
+  }, [playbackRate]);
+
+  useEffect(() => {
+    if (isReplay) {
+      setFinishedPlayers([]);
+      finishedRef.current = [];
+      replayTimeRef.current = 0;
+      setReplayTimeState(0);
+      setIsPlaying(true);
+      isPlayingRef.current = true;
+    }
+  }, [isReplay, replayTrajectory]);
 
   useEffect(() => {
     if (!sceneRef.current) return;
 
     const Engine = Matter.Engine,
           Render = Matter.Render,
-          Runner = Matter.Runner,
           Bodies = Matter.Bodies,
           Composite = Matter.Composite,
           Events = Matter.Events;
@@ -67,14 +117,14 @@ export function RaceScreen({ players, onFinish }: Props) {
     render.canvas.style.height = 'auto';
     renderRef.current = render;
 
-    // Boundary walls (약간 안쪽으로 기울어지게 해서 구슬이 구석에 끼는 것을 방지하거나, 공을 안쪽으로 튕겨내는 마찰/restitution 부여)
+    // Boundary walls
     const wallOptions = { 
       isStatic: true, 
       restitution: 0.8, 
       friction: 0,
       render: { fillStyle: 'rgba(255,255,255,0.1)' } 
     };
-    const leftWall = Bodies.rectangle(0, worldHeight / 2, 40, worldHeight, wallOptions); // 벽 두께를 키움
+    const leftWall = Bodies.rectangle(0, worldHeight / 2, 40, worldHeight, wallOptions);
     const rightWall = Bodies.rectangle(width, worldHeight / 2, 40, worldHeight, wallOptions);
     
     // Top funnel
@@ -89,16 +139,15 @@ export function RaceScreen({ players, onFinish }: Props) {
       render: { fillStyle: 'rgba(255,255,255,0.2)' }
     });
 
-    // Bottleneck (순서가 뒤바뀌는 좁은 병목 구간)
+    // Bottleneck
     const bottleneckY = 1200;
-    const gap = 38; // 둘이 동시에 못들어가도록 구슬 지름(24)보다 조금 큰 38
+    const gap = 38;
 
     const funnelLength = 300;
-    const funnelAngle = Math.PI / 6; // 30도 경사
+    const funnelAngle = Math.PI / 6;
     const funnelDx = (funnelLength / 2) * Math.cos(funnelAngle);
     const funnelDy = (funnelLength / 2) * Math.sin(funnelAngle);
 
-    // 깔때기가 끝나는 점이 (width/2 - gap/2, bottleneckY)가 되도록 중심 이동
     const funnelLeftCenterX = (width / 2 - gap / 2) - funnelDx;
     const funnelLeftCenterY = bottleneckY - funnelDy;
 
@@ -106,7 +155,6 @@ export function RaceScreen({ players, onFinish }: Props) {
       isStatic: true, angle: funnelAngle, render: { fillStyle: 'rgba(236,72,153,0.3)' }
     });
     
-    // 오른쪽 깔때기
     const funnelRightCenterX = (width / 2 + gap / 2) + funnelDx;
     const funnelRightCenterY = bottleneckY - funnelDy;
 
@@ -114,22 +162,19 @@ export function RaceScreen({ players, onFinish }: Props) {
       isStatic: true, angle: -funnelAngle, render: { fillStyle: 'rgba(236,72,153,0.3)' }
     });
 
-    // 좁은 터널 (벽의 두께가 20)
     const channelLength = 300;
-    const channelY = bottleneckY + channelLength / 2; // 깔때기 끝점에서 시작하여 아래로 이어짐
+    const channelY = bottleneckY + channelLength / 2;
 
     const channelLeft = Bodies.rectangle(width / 2 - gap / 2 - 10, channelY, 20, channelLength, wallOptions);
     const channelRight = Bodies.rectangle(width / 2 + gap / 2 + 10, channelY, 20, channelLength, wallOptions);
     
-    // 터널 입구 모서리에 구슬이 걸리지 않도록 둥근 범퍼 추가
     const bumperLeft = Bodies.circle(width / 2 - gap / 2 - 10, bottleneckY, 10, wallOptions);
     const bumperRight = Bodies.circle(width / 2 + gap / 2 + 10, bottleneckY, 10, wallOptions);
 
-    // 중간 회전 막대기(Mid Spinner) - 입구가 좁아지는 병목 지점 위
     const midSpinnerY = bottleneckY - 50;
-    const midSpinner = Bodies.rectangle(width / 2, midSpinnerY, 150, 15, {
+    const midSpinner = Bodies.rectangle(width / 2, midSpinnerY, 100, 15, {
       isStatic: true,
-      render: { fillStyle: '#3b82f6' } // 파란색 포인트 컬러
+      render: { fillStyle: '#3b82f6' }
     });
 
     Composite.add(engine.world, [
@@ -144,18 +189,15 @@ export function RaceScreen({ players, onFinish }: Props) {
     // Pegs (핀)
     const pegs = [];
     const spacingX = width / 6;
-
-    // 양쪽 끝에 공이 걸리지 않도록 여백(margin)을 충분히 크게 확보 (벽 두께 포함)
     const sideMargin = 55; 
 
-    // Upper pegs (top ~ bottleneck)
+    // Upper pegs
     for (let y = 120; y < bottleneckY - 100; y += 45) {
       const isEven = Math.floor(y / 45) % 2 === 0;
       const cols = isEven ? 5 : 6;
       const startX = isEven ? spacingX : spacingX / 2;
       for (let col = 0; col < cols; col++) {
         const x = startX + col * spacingX;
-        // 여백 검사 강화
         if (x > sideMargin && x < width - sideMargin) {
           pegs.push(Bodies.circle(x, y, 6, {
             isStatic: true, restitution: 0.6, render: { fillStyle: '#8b5cf6' }
@@ -164,7 +206,7 @@ export function RaceScreen({ players, onFinish }: Props) {
       }
     }
 
-    // Lower pegs (bottleneck ~ final funnel)
+    // Lower pegs
     const finalFunnelY = worldHeight - 350;
     for (let y = bottleneckY + 360; y < finalFunnelY - 80; y += 45) {
       const isEven = Math.floor(y / 45) % 2 === 0;
@@ -172,7 +214,6 @@ export function RaceScreen({ players, onFinish }: Props) {
       const startX = isEven ? spacingX : spacingX / 2;
       for (let col = 0; col < cols; col++) {
         const x = startX + col * spacingX;
-        // 여백 검사 강화
         if (x > sideMargin && x < width - sideMargin) {
           pegs.push(Bodies.circle(x, y, 6, {
             isStatic: true, restitution: 0.5, render: { fillStyle: '#10b981' }
@@ -181,24 +222,19 @@ export function RaceScreen({ players, onFinish }: Props) {
       }
     }
     
-    // 벽면 직하강 방지용 삼각형 톱니(Zigzag Bumper) 추가
-    // 고정 폭(375px)이므로 비율 계산 없이 직접 지정
+    // Zigzag Bumper
     const bumperRadius = 25;
     const bumperOffsetX = 10;
-    
     const wallBumpers = [];
-    // 상단 구간 벽 범퍼
+    
     for (let y = 160; y < bottleneckY - 100; y += 100) {
       wallBumpers.push(
-        // angle Math.PI: 왼쪽 벽면에 붙어서 꼭지점이 우측(트랙 안쪽)을 향함
         Bodies.polygon(bumperOffsetX, y, 3, bumperRadius, { isStatic: true, angle: Math.PI, restitution: 0.5, render: { fillStyle: 'rgba(236,72,153,0.4)' } }) 
       );
       wallBumpers.push(
-        // angle 0: 오른쪽 벽면에 붙어서 꼭지점이 좌측(트랙 안쪽)을 향함
         Bodies.polygon(width - bumperOffsetX, y + 50, 3, bumperRadius, { isStatic: true, angle: 0, restitution: 0.5, render: { fillStyle: 'rgba(236,72,153,0.4)' } }) 
       );
     }
-    // 하단 구간 벽 범퍼
     for (let y = bottleneckY + 400; y < finalFunnelY - 100; y += 100) {
       wallBumpers.push(
         Bodies.polygon(bumperOffsetX, y, 3, bumperRadius, { isStatic: true, angle: Math.PI, restitution: 0.5, render: { fillStyle: 'rgba(16,185,129,0.4)' } })
@@ -210,7 +246,7 @@ export function RaceScreen({ players, onFinish }: Props) {
     
     Composite.add(engine.world, [...pegs, ...wallBumpers]);
 
-    // Final Funnel (도착지 전 한 줄 서기 구간, 도착 순서를 확실히 보장하기 위함)
+    // Final Funnel
     const finalFunnelLeftCenterX = (width / 2 - gap / 2) - funnelDx;
     const finalFunnelLeftCenterY = finalFunnelY - funnelDy;
     const finalFunnelLeft = Bodies.rectangle(finalFunnelLeftCenterX, finalFunnelLeftCenterY, funnelLength, 20, { 
@@ -228,18 +264,16 @@ export function RaceScreen({ players, onFinish }: Props) {
 
     const finalChannelLength = 200;
     const finalChannelY = finalFunnelY + finalChannelLength / 2;
-    // 터널 공간이 1열만 생기게 유지하되, 너무 좁아서 걸리지 않게 wallOptions에서 마찰 강제 0
     const smoothWallOptions = { isStatic: true, friction: 0, render: { fillStyle: 'rgba(255,255,255,0.1)' } };
 
     const finalChannelLeft = Bodies.rectangle(width / 2 - gap / 2 - 10, finalChannelY, 20, finalChannelLength, smoothWallOptions);
     const finalChannelRight = Bodies.rectangle(width / 2 + gap / 2 + 10, finalChannelY, 20, finalChannelLength, smoothWallOptions);
 
-    // 회전 막대기 (역전 요소) 추가
-    // 윗 깔때기(finalFunnelY) 바로 위 중앙에 배치하여 타이밍에 따라 구슬을 위로 쳐올리게 만듦
+    // Spinner
     const spinnerY = finalFunnelY - 50; 
-    const spinner = Bodies.rectangle(width / 2, spinnerY, 180, 15, {
+    const spinner = Bodies.rectangle(width / 2, spinnerY, 130, 15, {
       isStatic: true,
-      render: { fillStyle: '#f59e0b' } // 주황색 포인트 컬러
+      render: { fillStyle: '#f59e0b' }
     });
 
     Composite.add(engine.world, [
@@ -249,16 +283,16 @@ export function RaceScreen({ players, onFinish }: Props) {
       spinner
     ]);
 
-    // Bottom sensor (Finish line - 센서를 터널 중간이나 끝부분 약간 위에 길게 두어 반드시 통과를 인지)
-    const sensorY = finalChannelY + finalChannelLength / 2 - 30; // 터널 끝단에서 살짝 위
+    // Finish line Sensor
+    const sensorY = finalChannelY + finalChannelLength / 2 - 30;
     const finishLine = Bodies.rectangle(width / 2, sensorY, gap * 1.5, 30, {
       isStatic: true,
       isSensor: true,
-      render: { fillStyle: 'rgba(239, 68, 68, 0.4)' }, // 빨간줄 반투명 설정
+      render: { fillStyle: 'rgba(239, 68, 68, 0.4)' },
       label: 'FinishLine'
     });
     
-    // Add Slots at the bottom (장식용 목표 지점)
+    // Slots
     const slotWalls: Matter.Body[] = [];
     const slotCount = players.length;
     const slotWidth = width / slotCount;
@@ -266,22 +300,33 @@ export function RaceScreen({ players, onFinish }: Props) {
       const x = i * slotWidth;
       const y = worldHeight - 40;
       slotWalls.push(Bodies.rectangle(x, y, 10, 80, smoothWallOptions));
-      // 슬롯 벽 꼭대기에 확실히 둥근 범퍼를 크게 달아서 끼임 방지
       slotWalls.push(Bodies.circle(x, y - 40, 8, smoothWallOptions));
     }
-    const ground = Bodies.rectangle(width / 2, worldHeight + 20, width, 40, smoothWallOptions); // 바닥 안전망 늘림
+    const ground = Bodies.rectangle(width / 2, worldHeight + 20, width, 40, smoothWallOptions);
     Composite.add(engine.world, [finishLine, ...slotWalls, ground]);
 
-    // Add Player Marbles
+    // Marbles
     const marbles = players.map((p, index) => {
-      // 겹치지 않게 출발 X를 고르게 분배하거나 Y를 다르게 줌
-      const startX = width / 2 + (Math.random() * 20 - 10);
-      return Bodies.circle(startX, -(index * 40) - 40, 11, { // 구슬 반지름 12 -> 11 로 줄여 상대적으로 틈새 통과 유리하게
+      // 일반 모드에서는 랜덤 분포 출발, 리플레이 시에는 첫 프레임 데이터 좌표로 우선 초기화
+      let startX = width / 2 + (Math.random() * 20 - 10);
+      let startY = -(index * 25) - 20;
+
+      if (isReplay && replayTrajectory.length > 0) {
+        const startFrame = replayTrajectory[0];
+        const pPos = startFrame.positions[p.id];
+        if (pPos) {
+          startX = pPos.x;
+          startY = pPos.y;
+        }
+      }
+
+      return Bodies.circle(startX, startY, 11, {
+        isStatic: isReplay, // 리플레이 모드에서는 수동 업데이트를 위해 static으로 둠
         restitution: 0.85,
-        friction: 0.0001, // 덜 걸리도록 매우 작은 마찰
-        frictionStatic: 0, // 정지 마찰력 없애서 멈춤 현상 방지
-        frictionAir: 0.02, // 떨어지는 속도가 너무 빨라 튕겨나가지 않게 약간의 공기저항 추가
-        density: 0.05,
+        friction: 0.0001,
+        frictionStatic: 0,
+        frictionAir: 0.02,
+        density: 0.005,
         label: `player_${p.id}`,
         render: {
           fillStyle: PLAYER_COLORS[index % PLAYER_COLORS.length],
@@ -292,18 +337,131 @@ export function RaceScreen({ players, onFinish }: Props) {
     });
     Composite.add(engine.world, marbles);
 
-    // Camera Panning Logic & Spinner Rotation
+    // Camera Panning & Update Logic
     Events.on(engine, 'beforeUpdate', () => {
-      // 1. 역전 막대기(Spinner) 및 중간 막대기 계속 회전
-      Matter.Body.setAngle(spinner, spinner.angle + 0.02); // 0.02 라디안씩 천천히 회전
-      Matter.Body.setAngle(midSpinner, midSpinner.angle - 0.025); // 중간 막대기는 반대 방향으로 약간 빠르게 회전
+      let activeMarbles = marbles;
 
-      // 2. 결승선을 통과하지 않은 구슬만 추적
-      const activeMarbles = marbles.filter(m => !finishedRef.current.includes(m.label.split('_')[1]));
+      if (isReplay && replayTrajectory.length > 0) {
+        // ------------------ 리플레이 재생 처리 ------------------
+        if (isPlayingRef.current) {
+          const delta = (engine.timing.lastDelta || 16.66) * playbackRateRef.current;
+          replayTimeRef.current = Math.min(totalDuration, replayTimeRef.current + delta);
+          setReplayTimeState(replayTimeRef.current);
+        }
+
+        const t = replayTimeRef.current;
+        
+        // 보간할 두 프레임 찾기
+        let f1 = replayTrajectory[0];
+        let f2 = replayTrajectory[0];
+        for (let i = 0; i < replayTrajectory.length; i++) {
+          if (replayTrajectory[i].t <= t) {
+            f1 = replayTrajectory[i];
+          }
+          if (replayTrajectory[i].t > t) {
+            f2 = replayTrajectory[i];
+            break;
+          }
+        }
+
+        // 구슬들 위치 강제 세팅 (보간 적용)
+        marbles.forEach(marble => {
+          const playerId = marble.label.split('_')[1];
+          const p1 = f1.positions[playerId];
+          const p2 = f2.positions[playerId];
+          
+          if (p1 && p2 && f1.t !== f2.t) {
+            const ratio = (t - f1.t) / (f2.t - f1.t);
+            const x = p1.x + (p2.x - p1.x) * ratio;
+            const y = p1.y + (p2.y - p1.y) * ratio;
+            Matter.Body.setPosition(marble, { x, y });
+          } else if (p1) {
+            Matter.Body.setPosition(marble, { x: p1.x, y: p1.y });
+          }
+        });
+
+        // 스피너 회전 (시간 t에 비례하도록 수동 계산)
+        const spinnerAngle = t * 0.0012;
+        Matter.Body.setAngle(spinner, spinnerAngle);
+        Matter.Body.setAngle(midSpinner, -spinnerAngle * 1.25);
+
+        // 실시간 순위 정보 계산 (센서Y를 지나갔는지 검사)
+        const passedIds = players
+          .map(p => {
+            const pos = f1.positions[p.id];
+            return { id: p.id, y: pos ? pos.y : 0 };
+          })
+          .filter(item => item.y >= sensorY)
+          .sort((a, b) => raceResults.indexOf(a.id) - raceResults.indexOf(b.id))
+          .map(item => item.id);
+        
+        setFinishedPlayers(passedIds);
+
+        // 끝에 도달했을 때 일시정지
+        if (t >= totalDuration && isPlayingRef.current) {
+          setIsPlaying(false);
+          isPlayingRef.current = false;
+        }
+      } else {
+        // ------------------ 일반 물리 시뮬레이션 처리 ------------------
+        Matter.Body.setAngle(spinner, spinner.angle + 0.02);
+        Matter.Body.setAngle(midSpinner, midSpinner.angle - 0.025);
+
+        activeMarbles = marbles.filter(m => !finishedRef.current.includes(m.label.split('_')[1]));
+
+        // 마블 끼임(Stuck) 방지 로직: 1초(60프레임) 동안 공간상 위치 변화가 극히 작으면 핀에 걸린 것으로 진단하여 속도를 강제 부여
+        activeMarbles.forEach(m => {
+          const customBody = m as any;
+          
+          if (customBody.lastPosX !== undefined && customBody.lastPosY !== undefined) {
+            const dx = m.position.x - customBody.lastPosX;
+            const dy = m.position.y - customBody.lastPosY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            // 미세한 부르르 떨림 속도(진동)에도 무관하게, 실제 좌표가 거의 이동하지 않은 경우 Stuck 판단
+            if (dist < 0.8) {
+              customBody.stuckFrames = (customBody.stuckFrames || 0) + 1;
+            } else {
+              customBody.stuckFrames = 0;
+            }
+          } else {
+            customBody.stuckFrames = 0;
+          }
+          
+          // 위치 갱신
+          customBody.lastPosX = m.position.x;
+          customBody.lastPosY = m.position.y;
+
+          if (customBody.stuckFrames > 45) {
+            // 질량이 커서 applyForce 대신 setVelocity를 사용하여 강제 속도를 부여해 핀에서 탈출시킴
+            const jumpX = (Math.random() - 0.5) * 4; // 좌우 튀기기
+            const jumpY = -3; // 살짝 위로 튀기기
+            Matter.Body.setVelocity(m, { x: jumpX, y: jumpY });
+            customBody.stuckFrames = 0;
+          }
+        });
+
+        // 궤적(Trajectory) 주기적 캡처 (100ms 간격)
+        const timestamp = engine.timing.timestamp;
+        if (timestamp - lastCaptureTimeRef.current >= 100) {
+          lastCaptureTimeRef.current = timestamp;
+          const positions: { [playerId: string]: { x: number; y: number } } = {};
+          marbles.forEach(m => {
+            const playerId = m.label.split('_')[1];
+            positions[playerId] = {
+              x: Number(m.position.x.toFixed(1)),
+              y: Number(m.position.y.toFixed(1))
+            };
+          });
+          trajectoryRef.current.push({
+            t: Math.round(timestamp),
+            positions
+          });
+        }
+      }
       
+      // 카메라 Panning 로직 (리플레이 모드와 일반 모드 공통 적용)
       if (activeMarbles.length > 0) {
-        // 가장 아래에 있는 구슬(선두)을 기준으로 카메라 이동 및 순위 역전 감지
-        // 레이스의 긴장감을 위해 제일 앞서가는(선두) 구슬을 포커스로 잡자 (단 너무 벌어지면 평균)
         let maxY = 0;
         let currentLeader: string | null = null;
         for (const m of activeMarbles) {
@@ -313,34 +471,26 @@ export function RaceScreen({ players, onFinish }: Props) {
           }
         }
 
-        // 선두(1위) 역전 시 슬로우 모션 효과 타격감 추가
-        if (currentLeader && leaderRef.current && currentLeader !== leaderRef.current) {
-          // 역전 감지됨!
+        // 역전 슬로우모션 효과 (일반 게임 모드 전용)
+        if (!isReplay && currentLeader && leaderRef.current && currentLeader !== leaderRef.current) {
           if (engine.timing) {
-            engine.timing.timeScale = 0.2; // 20% 속도로 슬로우 모션
+            engine.timing.timeScale = 0.2;
           }
-          
           if (slowMoTimeoutRef.current) {
             clearTimeout(slowMoTimeoutRef.current);
           }
-          
           slowMoTimeoutRef.current = setTimeout(() => {
             if (engine.timing) {
-              engine.timing.timeScale = 1.0; // 원상 복구
+              engine.timing.timeScale = 1.0;
             }
-          }, 1500); // 1.5초 동안 지속
+          }, 1500);
         }
         
-        // 현재 선두 업데이트
         leaderRef.current = currentLeader;
         
-        let targetMinY = maxY - (viewHeight * 0.7); // 화면 하단부에 선두가 위치하도록
+        let targetMinY = maxY - (viewHeight * 0.7);
         let currentMinY = render.bounds.min.y;
-        
-        // 부드럽게 이동 (Lerp)
         let newMinY = currentMinY + (targetMinY - currentMinY) * 0.1;
-        
-        // Clamp (화면 이탈 방지)
         newMinY = Math.max(0, Math.min(worldHeight - viewHeight, newMinY));
 
         render.bounds.min.x = 0;
@@ -350,44 +500,93 @@ export function RaceScreen({ players, onFinish }: Props) {
       }
     });
 
-    // Collision Event for Finish Line
-    Events.on(engine, 'collisionStart', (event) => {
-      const pairs = event.pairs;
-      for (const pair of pairs) {
-        let marbleBody = null;
-        if (pair.bodyA.label === 'FinishLine' && pair.bodyB.label?.startsWith('player_')) {
-          marbleBody = pair.bodyB;
-        } else if (pair.bodyB.label === 'FinishLine' && pair.bodyA.label?.startsWith('player_')) {
-          marbleBody = pair.bodyA;
-        }
+    // 충돌 처리 (일반 모드 전용)
+    if (!isReplay) {
+      Events.on(engine, 'collisionStart', (event) => {
+        const pairs = event.pairs;
+        for (const pair of pairs) {
+          let marbleBody = null;
+          if (pair.bodyA.label === 'FinishLine' && pair.bodyB.label?.startsWith('player_')) {
+            marbleBody = pair.bodyB;
+          } else if (pair.bodyB.label === 'FinishLine' && pair.bodyA.label?.startsWith('player_')) {
+            marbleBody = pair.bodyA;
+          }
 
-        if (marbleBody) {
-          const playerId = marbleBody.label.split('_')[1];
-          if (!finishedRef.current.includes(playerId)) {
-            finishedRef.current.push(playerId);
-            setFinishedPlayers([...finishedRef.current]);
+          if (marbleBody) {
+            const playerId = marbleBody.label.split('_')[1];
+            if (!finishedRef.current.includes(playerId)) {
+              finishedRef.current.push(playerId);
+              setFinishedPlayers([...finishedRef.current]);
 
-            if (finishedRef.current.length === players.length) {
-              setTimeout(() => {
-                onFinish(finishedRef.current);
-              }, 2000); // 2초 대기 후 결과 화면으로
+              if (finishedRef.current.length === players.length) {
+                if (finishTimeoutRef.current) {
+                  clearTimeout(finishTimeoutRef.current);
+                }
+                finishTimeoutRef.current = window.setTimeout(() => {
+                  onFinish(finishedRef.current, trajectoryRef.current);
+                }, 2000);
+              }
             }
           }
         }
-      }
-    });
+      });
+    }
 
-    Render.run(render);
-    const runner = Runner.create();
-    runnerRef.current = runner;
-    Runner.run(runner, engine);
+    let lastTime = performance.now();
+    let accumulator = 0;
+    const tick = (delta: number) => {
+      const timeStep = 16.66;
+      accumulator += delta;
+      
+      // 폭주 방지 (브라우저 비활성화 후 복귀 시 물리 연산 폭발 방지)
+      if (accumulator > 150) {
+        accumulator = 150;
+      }
+
+      while (accumulator >= timeStep) {
+        Matter.Engine.update(engine, timeStep);
+        accumulator -= timeStep;
+      }
+      Matter.Render.world(render);
+    };
+
+    let frameCount = 0;
+    let lastLogTime = performance.now();
+
+    const updateLoop = () => {
+      const now = performance.now();
+      const delta = now - lastTime;
+      lastTime = now;
+      tick(delta);
+      
+      frameCount++;
+      if (now - lastLogTime >= 1000) {
+        // [PHYSICS LOOP] 디버깅용 로그 비활성화
+        // const yCoords = marbles.map(m => `${m.label.split('_')[1]}:${m.position.y.toFixed(1)}`).join(', ');
+        // console.log(`[PHYSICS LOOP] FPS: ${frameCount}, delta sum: ${(now - lastLogTime).toFixed(1)}ms. Marbles Y: [${yCoords}]`);
+        frameCount = 0;
+        lastLogTime = now;
+      }
+      
+      loopTimeoutIdRef.current = window.setTimeout(updateLoop, 16);
+    };
+    loopTimeoutIdRef.current = window.setTimeout(updateLoop, 16);
 
     return () => {
-      Render.stop(render);
-      Runner.stop(runner);
+      if (loopTimeoutIdRef.current) {
+        clearTimeout(loopTimeoutIdRef.current);
+      }
+      if (slowMoTimeoutRef.current) {
+        clearTimeout(slowMoTimeoutRef.current);
+      }
+      if (finishTimeoutRef.current) {
+        clearTimeout(finishTimeoutRef.current);
+      }
       if (engineRef.current) {
          Events.off(engineRef.current, 'beforeUpdate');
-         Events.off(engineRef.current, 'collisionStart');
+         if (!isReplay) {
+           Events.off(engineRef.current, 'collisionStart');
+         }
          Composite.clear(engineRef.current.world, false, true);
          Engine.clear(engineRef.current);
       }
@@ -395,12 +594,27 @@ export function RaceScreen({ players, onFinish }: Props) {
         render.canvas.remove();
       }
     };
-  }, [players, onFinish]);
+  }, [players, isReplay, replayTrajectory]);
+
+  // 리플레이 타임라인 조절 핸들러
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const seekTime = Number(e.target.value);
+    replayTimeRef.current = seekTime;
+    setReplayTimeState(seekTime);
+  };
+
+  const togglePlayback = () => {
+    if (replayTimeRef.current >= totalDuration) {
+      replayTimeRef.current = 0;
+      setReplayTimeState(0);
+    }
+    setIsPlaying(!isPlaying);
+  };
 
   return (
     <div className="race-container">
       <div className="race-header">
-        <h2>🔥 마블 레이스 🔥</h2>
+        <h2>{isReplay ? '📺 리플레이 재생' : '🔥 마블 레이스 🔥'}</h2>
         <div className="live-rank">
           {finishedPlayers.map((id, index) => {
             const p = players.find(p => p.id === id);
@@ -415,7 +629,6 @@ export function RaceScreen({ players, onFinish }: Props) {
         </div>
       </div>
       
-      {/* 범례 표시 */}
       <div className="player-legend">
         {players.map((p, i) => (
           <div key={p.id} className="legend-item">
@@ -425,7 +638,58 @@ export function RaceScreen({ players, onFinish }: Props) {
         ))}
       </div>
 
-      <div className="glass-panel canvas-container" ref={sceneRef}></div>
+      <div className="glass-panel canvas-container" ref={sceneRef}>
+        {/* 리플레이 조작 컨트롤 바 */}
+        {isReplay && (
+          <div className="replay-controls">
+            <div className="replay-timeline">
+              <input 
+                type="range" 
+                min={0} 
+                max={totalDuration} 
+                value={replayTimeState} 
+                onChange={handleSeek}
+                className="replay-slider"
+              />
+              <span className="replay-time-text">
+                {(replayTimeState / 1000).toFixed(1)}s / {(totalDuration / 1000).toFixed(1)}s
+              </span>
+            </div>
+            
+            <div className="replay-buttons">
+              <div className="replay-btn-group">
+                <button 
+                  onClick={togglePlayback} 
+                  className={`btn-icon ${isPlaying ? 'active' : ''}`}
+                  title={isPlaying ? '일시정지' : '재생'}
+                >
+                  {isPlaying ? <Pause size={18} /> : <Play size={18} />}
+                </button>
+                
+                <div className="playback-rate-selector">
+                  {([1, 2, 4] as const).map((rate) => (
+                    <button
+                      key={rate}
+                      onClick={() => setPlaybackRate(rate)}
+                      className={`rate-btn ${playbackRate === rate ? 'active' : ''}`}
+                    >
+                      {rate}x
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {onExitReplay && (
+                <button onClick={onExitReplay} className="btn-exit-replay">
+                  <LogOut size={16} style={{ marginRight: '6px', verticalAlign: 'middle', display: 'inline-block' }} />
+                  나가기
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
+

@@ -16,4 +16,22 @@ export default defineSchema({
       })
     ), // 저장할 참가자 리스트
   }).index("by_userId", ["userId"]),
+
+  replays: defineTable({
+    userId: v.optional(v.string()), // 로그인 유저 ID
+    deviceId: v.string(), // 비로그인/로그인 공통 기기 고유 ID
+    players: v.array(
+      v.object({
+        id: v.string(),
+        name: v.string(),
+      })
+    ),
+    amountsPool: v.array(v.number()),
+    gameMode: v.string(),
+    raceResults: v.array(v.string()),
+    trajectory: v.string(), // JSON Stringified TrajectoryFrame[]
+    createdAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_deviceId", ["deviceId"]),
 });

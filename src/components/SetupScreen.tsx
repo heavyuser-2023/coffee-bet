@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { Player, GameMode } from '../types';
 import './SetupScreen.css';
-import { Users, Plus, X, Shuffle, DollarSign, Play, DownloadCloud, Save, GripVertical } from 'lucide-react';
+import { Users, Plus, X, Shuffle, DollarSign, Play, DownloadCloud, Save, GripVertical, History } from 'lucide-react';
 import { useQuery, useMutation, useConvexAuth } from 'convex/react';
 
 import { api } from '../../convex/_generated/api';
@@ -15,6 +15,8 @@ interface Props {
   setGameMode: (mode: GameMode) => void;
   onStart: (amounts: number[]) => void;
   onSignIn: () => Promise<void>;
+  deviceId: string;
+  onSelectReplay: (id: string) => void;
 }
 
 export function SetupScreen({
@@ -25,11 +27,15 @@ export function SetupScreen({
   gameMode,
   setGameMode,
   onStart,
-  onSignIn
+  onSignIn,
+  deviceId,
+  onSelectReplay
 }: Props) {
   const { isAuthenticated, isLoading } = useConvexAuth();
   // 로그인된 경우 저장된 그룹 목록을 가져옴
   const savedGroups = useQuery(api.participants.getGroups, isAuthenticated ? undefined : "skip");
+  // 최근 리플레이 목록을 가져옴
+  const savedReplays = useQuery(api.replays.getReplays, { deviceId });
   const saveGroup = useMutation(api.participants.saveGroup);
   const deleteGroup = useMutation(api.participants.deleteGroup);
 
@@ -37,6 +43,7 @@ export function SetupScreen({
   const [isCalculating, setIsCalculating] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [isReplayModalOpen, setIsReplayModalOpen] = useState(false);
   const [saveTitle, setSaveTitle] = useState("");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -398,7 +405,7 @@ export function SetupScreen({
         )}
       </div>
 
-      <div className="load-group-section" style={{ display: 'flex', gap: '12px' }}>
+      <div className="load-group-section" style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
         <button className="btn-secondary load-group-btn" onClick={openLoadModal} style={{ flex: 1 }}>
           <DownloadCloud size={20} className="icon-mr" /> 불러오기
         </button>
@@ -406,6 +413,10 @@ export function SetupScreen({
           <Save size={20} className="icon-mr" /> 저장하기
         </button>
       </div>
+
+      <button className="btn-secondary replay-list-btn" onClick={() => setIsReplayModalOpen(true)} style={{ width: '100%', marginBottom: '24px' }}>
+        <History size={20} className="icon-mr" /> 이전 리플레이 보기
+      </button>
 
       <button className="btn-primary start-btn" onClick={handleStart}>
         <Play size={20} className="icon-mr" /> 레이스 시작
@@ -523,6 +534,57 @@ export function SetupScreen({
             <div className="modal-actions" style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
               <button className="btn-close" onClick={() => setIsSaveModalOpen(false)} style={{ flex: 1, background: 'rgba(255,255,255,0.1)', border: 'none' }}>취소</button>
               <button className="btn-close" onClick={handleSaveGroup} style={{ flex: 1 }}>저장 확인</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 리플레이 목록 모달 */}
+      {isReplayModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsReplayModalOpen(false)}>
+          <div className="modal-content glass-panel" onClick={(e) => e.stopPropagation()}>
+            <h3>최근 게임 리플레이</h3>
+            <p style={{ fontSize: '0.9rem', color: '#94a3b8', marginBottom: '16px' }}>
+              최근 진행했던 게임 리플레이 기록입니다. (최대 20개 보관)
+            </p>
+            {!savedReplays ? (
+              <p>불러오는 중...</p>
+            ) : savedReplays.length === 0 ? (
+              <p style={{ color: '#94a3b8', margin: '20px 0' }}>기록된 리플레이가 없습니다.</p>
+            ) : (
+              <div className="replay-group-list" style={{ maxHeight: '250px', overflowY: 'auto', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '10px', textAlign: 'left' }}>
+                {savedReplays.map((replay) => {
+                  const dateStr = new Date(replay.createdAt).toLocaleString('ko-KR', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  });
+                  const modeText = replay.gameMode === 'all-in' ? '한 명 몰빵' : '랜덤 분배';
+                  const playerNames = replay.players.map((p: any) => p.name).join(', ');
+                  
+                  return (
+                    <div 
+                      key={replay._id}
+                      className="replay-item-card"
+                      onClick={() => onSelectReplay(replay._id)}
+                    >
+                      <div className="replay-card-header">
+                        <span className="replay-date">{dateStr}</span>
+                        <span className={`replay-badge ${replay.gameMode}`}>
+                          {modeText}
+                        </span>
+                      </div>
+                      <div className="replay-players">
+                        {playerNames}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            <div className="modal-actions" style={{ justifyContent: 'center' }}>
+              <button className="btn-close" onClick={() => setIsReplayModalOpen(false)}>닫기</button>
             </div>
           </div>
         </div>
