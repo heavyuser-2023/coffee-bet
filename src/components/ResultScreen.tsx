@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { GameMode, Player, TrajectoryFrame } from '../types';
 import './ResultScreen.css';
 import { RotateCcw, Trophy, Save, Share2 } from 'lucide-react';
@@ -34,7 +34,44 @@ export function ResultScreen({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [groupTitle, setGroupTitle] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [isSharing, setIsSharing] = useState(false);
+  const [autoSavedId, setAutoSavedId] = useState<string | null>(null);
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const hasRequestedSave = useRef(false);
+
+  useEffect(() => {
+    if (hasRequestedSave.current) return;
+    if (!trajectory || trajectory.length === 0) return;
+
+    const performAutoSave = async () => {
+      hasRequestedSave.current = true;
+      setIsAutoSaving(true);
+      try {
+        const replayId = await saveReplayMutation({
+          deviceId,
+          players: players.map(p => ({ id: p.id, name: p.name })),
+          amountsPool,
+          gameMode,
+          raceResults,
+          trajectory: JSON.stringify(trajectory)
+        });
+        setAutoSavedId(replayId);
+      } catch (e) {
+        console.error("리플레이 자동 저장 중 오류:", e);
+      } finally {
+        setIsAutoSaving(false);
+      }
+    };
+
+    performAutoSave();
+  }, [
+    saveReplayMutation,
+    deviceId,
+    players,
+    amountsPool,
+    gameMode,
+    raceResults,
+    trajectory
+  ]);
 
   const handleSaveGroup = () => {
     if (!isAuthenticated) {
@@ -93,48 +130,30 @@ export function ResultScreen({
   };
 
   const handleShareReplay = async () => {
-    if (!trajectory || trajectory.length === 0) {
-      alert("기록된 레이스 리플레이 데이터가 없습니다.");
+    if (isAutoSaving || !autoSavedId) {
+      alert("리플레이가 저장되는 중입니다. 잠시만 기다려주세요.");
       return;
     }
     
-    setIsSharing(true);
-    try {
-      // Convex Mutation 호출
-      const replayId = await saveReplayMutation({
-        deviceId,
-        players: players.map(p => ({ id: p.id, name: p.name })),
-        amountsPool,
-        gameMode,
-        raceResults,
-        trajectory: JSON.stringify(trajectory)
-      });
+    // 리플레이 URL 빌드
+    const shareUrl = `${window.location.origin}${window.location.pathname}?replay=${autoSavedId}`;
 
-      // 리플레이 URL 빌드
-      const shareUrl = `${window.location.origin}${window.location.pathname}?replay=${replayId}`;
-
-      // Web Share API를 지원하면 기기 네이티브 공유창 활성화
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            title: 'Coffee Bet - 마블 레이스 결과',
-            text: '오늘의 커피 룰렛 결과 리플레이를 지금 바로 확인해보세요!',
-            url: shareUrl,
-          });
-        } catch (shareErr) {
-          // 공유를 취소하지 않은 다른 오류 시에만 클립보드로 복사 처리
-          if (shareErr instanceof Error && shareErr.name !== 'AbortError') {
-            await copyToClipboard(shareUrl);
-          }
+    // Web Share API를 지원하면 기기 네이티브 공유창 활성화
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Coffee Bet - 마블 레이스 결과',
+          text: '오늘의 커피 룰렛 결과 리플레이를 지금 바로 확인해보세요!',
+          url: shareUrl,
+        });
+      } catch (shareErr) {
+        // 공유를 취소하지 않은 다른 오류 시에만 클립보드로 복사 처리
+        if (shareErr instanceof Error && shareErr.name !== 'AbortError') {
+          await copyToClipboard(shareUrl);
         }
-      } else {
-        await copyToClipboard(shareUrl);
       }
-    } catch (e) {
-      console.error("리플레이 저장 중 오류:", e);
-      alert("리플레이 생성 및 업로드에 실패했습니다.");
-    } finally {
-      setIsSharing(false);
+    } else {
+      await copyToClipboard(shareUrl);
     }
   };
 
@@ -208,10 +227,10 @@ export function ResultScreen({
         <button 
           className="share-replay-btn" 
           onClick={handleShareReplay} 
-          disabled={isSharing || !trajectory || trajectory.length === 0}
+          disabled={isAutoSaving || !autoSavedId || !trajectory || trajectory.length === 0}
         >
           <Share2 size={20} className="icon-mr" /> 
-          {isSharing ? "공유 링크 생성 중..." : "게임 리플레이 공유"}
+          {isAutoSaving ? "리플레이 저장 중..." : "게임 리플레이 공유"}
         </button>
 
         <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
