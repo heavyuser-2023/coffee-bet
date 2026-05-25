@@ -37,6 +37,21 @@ function App() {
         console.error("임시 데이터 파싱 에러:", e);
       }
     }
+    const lastParticipants = localStorage.getItem('coffeebet_last_participants');
+    if (lastParticipants) {
+      try {
+        const parsed = JSON.parse(lastParticipants);
+        if (
+          Array.isArray(parsed) &&
+          parsed.length > 0 &&
+          parsed.every((p) => p && typeof p.id === 'string' && typeof p.name === 'string')
+        ) {
+          return parsed;
+        }
+      } catch (e) {
+        console.error("마지막 참가자 파싱 에러:", e);
+      }
+    }
     return [
       { id: '1', name: '참가자 1' },
       { id: '2', name: '참가자 2' }
@@ -97,6 +112,15 @@ function App() {
       setGameState('replay');
     }
   }, []);
+
+  // 참가자 목록을 로컬에 영속화 (다음 실행 시 자동 복원)
+  useEffect(() => {
+    try {
+      localStorage.setItem('coffeebet_last_participants', JSON.stringify(players));
+    } catch (e) {
+      console.error("마지막 참가자 저장 에러:", e);
+    }
+  }, [players]);
 
   // 리플레이 데이터 로드 감시
   useEffect(() => {
