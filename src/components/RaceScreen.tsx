@@ -24,6 +24,11 @@ const PLAYER_COLORS = [
 const DEFAULT_TRAJECTORY: TrajectoryFrame[] = [];
 const DEFAULT_RESULTS: string[] = [];
 
+// tick 루프의 고정 물리 스텝(실시간 기준). Engine.update 1회 = 16.66ms 실시간 (timeScale 무관)
+const FIXED_STEP_MS = 16.66;
+// 궤적 캡처 간격(실시간 기준, ≈30fps). 핀 충돌 곡선을 충분히 표현하면서 payload 부담을 억제
+const SAMPLE_MS = 33;
+
 export function RaceScreen({ 
   players, 
   onFinish, 
@@ -55,6 +60,8 @@ export function RaceScreen({
   const playbackRateRef = useRef<1 | 2 | 4>(1);
   const trajectoryRef = useRef<TrajectoryFrame[]>([]);
   const lastCaptureTimeRef = useRef(0);
+  // 실시간 경과 누적(ms). timeScale(슬로우모션)의 영향을 받지 않는 캡처 시간축
+  const realElapsedRef = useRef(0);
 
   const totalDuration = replayTrajectory.length > 0 
     ? replayTrajectory[replayTrajectory.length - 1].t 
@@ -344,7 +351,8 @@ export function RaceScreen({
       if (isReplay && replayTrajectory.length > 0) {
         // ------------------ 리플레이 재생 처리 ------------------
         if (isPlayingRef.current) {
-          const delta = (engine.timing.lastDelta || 16.66) * playbackRateRef.current;
+          // 캡처와 동일한 실시간 축(스텝당 16.66ms)으로 진행 → 캡처/재생 시간축 완전 정합
+          const delta = FIXED_STEP_MS * playbackRateRef.current;
           replayTimeRef.current = Math.min(totalDuration, replayTimeRef.current + delta);
           setReplayTimeState(replayTimeRef.current);
         }
@@ -380,10 +388,10 @@ export function RaceScreen({
           }
         });
 
-        // 스피너 회전 (시간 t에 비례하도록 수동 계산)
-        const spinnerAngle = t * 0.0012;
-        Matter.Body.setAngle(spinner, spinnerAngle);
-        Matter.Body.setAngle(midSpinner, -spinnerAngle * 1.25);
+        // 스피너 회전: 라이브의 "스텝당 +0.02 / -0.025"와 정합 (t는 실시간 ms, 스텝수 = t/16.66)
+        const steps = t / FIXED_STEP_MS;
+        Matter.Body.setAngle(spinner, steps * 0.02);
+        Matter.Body.setAngle(midSpinner, steps * -0.025);
 
         // 실시간 순위 정보 계산 (센서Y를 지나갔는지 검사)
         const passedIds = players
@@ -441,20 +449,25 @@ export function RaceScreen({
           }
         });
 
-        // 궤적(Trajectory) 주기적 캡처 (100ms 간격)
-        const timestamp = engine.timing.timestamp;
-        if (timestamp - lastCaptureTimeRef.current >= 100) {
-          lastCaptureTimeRef.current = timestamp;
+        // 실시간 경과 누적 (Engine.update 1회 = 고정 16.66ms 실시간, timeScale 무관)
+        // → 슬로우모션 구간은 같은 실시간 동안 물리가 0.2배로 진행되어 프레임이 더 촘촘히 쌓이고,
+        //   재생이 이를 실시간 등속으로 통과하면 그 구간이 자연히 느리게 재현됨(역전 연출이 데이터에 내장됨)
+        realElapsedRef.current += FIXED_STEP_MS;
+        const realElapsed = realElapsedRef.current;
+
+        // 궤적(Trajectory) 주기적 캡처 (실시간 SAMPLE_MS 간격)
+        if (realElapsed - lastCaptureTimeRef.current >= SAMPLE_MS) {
+          lastCaptureTimeRef.current = realElapsed;
           const positions: { [playerId: string]: { x: number; y: number } } = {};
           marbles.forEach(m => {
             const playerId = m.label.split('_')[1];
             positions[playerId] = {
-              x: Number(m.position.x.toFixed(1)),
-              y: Number(m.position.y.toFixed(1))
+              x: Math.round(m.position.x),
+              y: Math.round(m.position.y)
             };
           });
           trajectoryRef.current.push({
-            t: Math.round(timestamp),
+            t: Math.round(realElapsed),
             positions
           });
         }
