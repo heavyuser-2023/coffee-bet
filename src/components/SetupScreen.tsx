@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { Player, GameMode } from '../types';
 import './SetupScreen.css';
 import { Users, Plus, X, Shuffle, DollarSign, Play, DownloadCloud, Save, GripVertical, History } from 'lucide-react';
@@ -216,8 +216,21 @@ export function SetupScreen({
 
   // 드래그앤드롭 상태
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  // 터치 이동 중 상태 업데이트보다 touchmove가 먼저 발생할 수 있어 ref로 현재 위치 추적
+  const draggedIndexRef = useRef<number | null>(null);
+
+  const movePlayer = (from: number, to: number) => {
+    if (from === to) return;
+    const next = [...players];
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    setPlayers(next);
+    draggedIndexRef.current = to;
+    setDraggedIndex(to);
+  };
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
+    draggedIndexRef.current = index;
     setDraggedIndex(index);
     if (e.dataTransfer) {
       e.dataTransfer.effectAllowed = 'move';
@@ -227,17 +240,35 @@ export function SetupScreen({
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
     if (draggedIndex === null || draggedIndex === index) return;
-    
-    const newPlayers = [...players];
-    const draggedItem = newPlayers[draggedIndex];
-    newPlayers.splice(draggedIndex, 1);
-    newPlayers.splice(index, 0, draggedItem);
-    
-    setDraggedIndex(index);
-    setPlayers(newPlayers);
+    movePlayer(draggedIndex, index);
   };
 
   const handleDragEnd = () => {
+    draggedIndexRef.current = null;
+    setDraggedIndex(null);
+  };
+
+  // 모바일: HTML5 DnD는 터치를 지원하지 않으므로 터치 이벤트로 처리
+  const handleTouchStart = (index: number) => {
+    draggedIndexRef.current = index;
+    setDraggedIndex(index);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    const from = draggedIndexRef.current;
+    if (from === null) return;
+    const touch = e.touches[0];
+    const target = document
+      .elementFromPoint(touch.clientX, touch.clientY)
+      ?.closest('.player-item') as HTMLElement | null;
+    if (!target || target.dataset.index === undefined) return;
+    const to = Number(target.dataset.index);
+    if (Number.isNaN(to)) return;
+    movePlayer(from, to);
+  };
+
+  const handleTouchEnd = () => {
+    draggedIndexRef.current = null;
     setDraggedIndex(null);
   };
 
@@ -350,13 +381,18 @@ export function SetupScreen({
                 key={p.id} 
                 className={`player-item fadeIn ${draggedIndex === index ? 'dragging' : ''}`}
                 draggable
+                data-index={index}
                 onDragStart={(e) => handleDragStart(e, index)}
                 onDragOver={(e) => handleDragOver(e, index)}
                 onDragEnd={handleDragEnd}
               >
-                <div 
-                  className="drag-handle" 
-                  style={{ display: 'flex', alignItems: 'center', color: '#64748b', cursor: 'grab', paddingRight: '4px', transition: 'color 0.2s' }}
+                <div
+                  className="drag-handle"
+                  style={{ display: 'flex', alignItems: 'center', color: '#64748b', cursor: 'grab', paddingRight: '4px', transition: 'color 0.2s', touchAction: 'none' }}
+                  onTouchStart={() => handleTouchStart(index)}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
+                  onTouchCancel={handleTouchEnd}
                 >
                   <GripVertical size={18} />
                 </div>
