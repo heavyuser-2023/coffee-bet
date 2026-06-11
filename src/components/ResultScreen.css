@@ -102,6 +102,12 @@
   text-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
 }
 
+/* 랜덤 분배에서 일부 금액을 부담하는 참가자 (최고 금액자가 아닌 경우) */
+.text-warning {
+  color: #fcd34d;
+  text-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
+}
+
 .summary {
   margin-top: 24px;
   padding-top: 20px;
@@ -117,6 +123,7 @@
   font-size: 1.3rem;
   background: linear-gradient(135deg, var(--primary), var(--secondary));
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 

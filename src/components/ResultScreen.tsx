@@ -5,6 +5,7 @@ import { RotateCcw, Trophy, Save, Share2 } from 'lucide-react';
 import { useMutation, useConvexAuth } from 'convex/react';
 
 import { api } from '../../convex/_generated/api';
+import { PLAYER_COLORS } from '../constants';
 
 interface Props {
   players: Player[];
@@ -15,8 +16,6 @@ interface Props {
   trajectory?: TrajectoryFrame[];
   deviceId: string;
 }
-
-const PLAYER_COLORS = ['#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'];
 
 export function ResultScreen({ 
   players, 
@@ -37,6 +36,20 @@ export function ResultScreen({
   const [autoSavedId, setAutoSavedId] = useState<string | null>(null);
   const [isAutoSaving, setIsAutoSaving] = useState(false);
   const hasRequestedSave = useRef(false);
+
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+    toastTimerRef.current = window.setTimeout(() => {
+      setToastMessage(null);
+      toastTimerRef.current = null;
+    }, 4000);
+  };
 
   useEffect(() => {
     if (hasRequestedSave.current) return;
@@ -75,7 +88,7 @@ export function ResultScreen({
 
   const handleSaveGroup = () => {
     if (!isAuthenticated) {
-      alert("참가자를 저장하려면 상단의 로그인 버튼을 눌러주세요.");
+      showToast("참가자를 저장하려면 상단의 로그인 버튼을 눌러주세요.");
       return;
     }
     setIsModalOpen(true);
@@ -83,7 +96,7 @@ export function ResultScreen({
 
   const confirmSave = async () => {
     if (!groupTitle.trim()) {
-      alert("그룹 이름을 입력해주세요.");
+      showToast("그룹 이름을 입력해주세요.");
       return;
     }
     setIsSaving(true);
@@ -92,12 +105,12 @@ export function ResultScreen({
         title: groupTitle.trim(),
         players: players.map(p => ({ id: p.id, name: p.name }))
       });
-      alert("성공적으로 저장되었습니다!");
+      showToast(`'${groupTitle.trim()}' 그룹이 저장되었습니다! ✅`);
       setIsModalOpen(false);
       setGroupTitle('');
     } catch (e) {
       console.error(e);
-      alert("저장 중 오류가 발생했습니다.");
+      showToast("저장 중 오류가 발생했습니다.");
     } finally {
       setIsSaving(false);
     }
@@ -107,13 +120,13 @@ export function ResultScreen({
     if (navigator.clipboard) {
       try {
         await navigator.clipboard.writeText(url);
-        alert("리플레이 공유 링크가 클립보드에 복사되었습니다! 🔗");
+        showToast("리플레이 공유 링크가 클립보드에 복사되었습니다! 🔗");
         return;
       } catch (err) {
         console.error("클립보드 API 복사 실패:", err);
       }
     }
-    
+
     // Fallback 복사 방식
     const tempInput = document.createElement('input');
     tempInput.value = url;
@@ -121,7 +134,7 @@ export function ResultScreen({
     tempInput.select();
     try {
       document.execCommand('copy');
-      alert("리플레이 공유 링크가 복사되었습니다! 🔗");
+      showToast("리플레이 공유 링크가 복사되었습니다! 🔗");
     } catch (err) {
       console.error("Fallback 복사 실패:", err);
       alert(`링크 복사에 실패했습니다. 주소를 직접 복사해주세요:\n${url}`);
@@ -131,7 +144,7 @@ export function ResultScreen({
 
   const handleShareReplay = async () => {
     if (isAutoSaving || !autoSavedId) {
-      alert("리플레이가 저장되는 중입니다. 잠시만 기다려주세요.");
+      showToast("리플레이를 저장하는 중입니다. 잠시만 기다려주세요.");
       return;
     }
     
@@ -143,7 +156,7 @@ export function ResultScreen({
       try {
         await navigator.share({
           title: 'Coffee Bet - 마블 레이스 결과',
-          text: '오늘의 커피 룰렛 결과 리플레이를 지금 바로 확인해보세요!',
+          text: '오늘의 커피 내기 결과, 마블 레이스 리플레이로 확인해보세요!',
           url: shareUrl,
         });
       } catch (shareErr) {
@@ -162,15 +175,16 @@ export function ResultScreen({
   const hasAmount = totalBill > 0;
 
   // raceResults의 순서대로 amountsPool의 금액을 받음
+  const maxAmount = Math.max(...amountsPool, 0);
   const finalResults = raceResults.map((id, index) => {
     const player = players.find(p => p.id === id)!;
     const amount = amountsPool[index] || 0;
     const color = PLAYER_COLORS[players.findIndex(p => p.id === id) % PLAYER_COLORS.length];
     const rank = index + 1;
-    
-    // 금액이 지정된 경우: 해당 순위의 배분 금액이 0원보다 크면 벌칙자
+
+    // 금액이 지정된 경우: 가장 큰 금액을 부담하는 사람만 벌칙자로 강조 (랜덤 분배에서 전원이 강조되는 것을 방지)
     // 금액이 지정되지 않은 경우: 레이스의 최하위(마지막 인덱스)를 벌칙자로 판정
-    const isLoser = hasAmount ? (amount > 0) : (index === raceResults.length - 1);
+    const isLoser = hasAmount ? (amount > 0 && amount === maxAmount) : (index === raceResults.length - 1);
 
     return { player, amount, rank, color, isLoser };
   });
@@ -202,9 +216,13 @@ export function ResultScreen({
                 {res.isLoser ? (
                   <span className="amount-value text-danger">
                     {gameMode === 'all-in'
-                      ? '모두 쏜다! 💸'
-                      : (hasAmount ? `${res.amount.toLocaleString()}원` : '모두 쏜다! 💸')
+                      ? '오늘은 쏘는 날! 💸'
+                      : (hasAmount ? `${res.amount.toLocaleString()}원` : '오늘은 쏘는 날! 💸')
                     }
+                  </span>
+                ) : res.amount > 0 ? (
+                  <span className="amount-value text-warning">
+                    {res.amount.toLocaleString()}원
                   </span>
                 ) : (
                   <span className="amount-value text-success">
@@ -245,11 +263,17 @@ export function ResultScreen({
         </div>
       </div>
 
+      {toastMessage && (
+        <div className="toast-notification fadeIn">
+          {toastMessage}
+        </div>
+      )}
+
       {isModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content glass-panel">
+        <div className="modal-overlay" onClick={() => !isSaving && setIsModalOpen(false)}>
+          <div className="modal-content glass-panel" onClick={(e) => e.stopPropagation()}>
             <h3>참가자 그룹 저장</h3>
-            <p>이 그룹의 이름을 입력해주세요.<br/>(예: 대학 동창, 개발팀 회식)</p>
+            <p>저장할 그룹의 이름을 입력해주세요.<br/>(예: 대학 동창, 개발팀 회식)</p>
             <input 
               type="text" 
               value={groupTitle} 

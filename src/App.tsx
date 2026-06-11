@@ -252,7 +252,7 @@ function App() {
 
       {/* 상단 로그인/로그아웃 메뉴 */}
       {gameState !== 'replay' && (
-        <div className="top-menu-bar" style={{ marginTop: 'env(safe-area-inset-top)', marginBottom: '16px' }}>
+        <div className="top-menu-bar" style={{ marginBottom: '16px' }}>
           <UserMenu onSignIn={handleSignIn} />
         </div>
       )}

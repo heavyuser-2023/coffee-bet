@@ -47,10 +47,17 @@ export function SetupScreen({
   const [saveTitle, setSaveTitle] = useState("");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // 연속 호출 시 이전 타이머가 새 토스트를 조기에 지우지 않도록 추적
+  const toastTimerRef = useRef<number | null>(null);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+    toastTimerRef.current = window.setTimeout(() => {
       setToastMessage(null);
+      toastTimerRef.current = null;
     }, 4000); // 4초간 노출 (사용자 요청 반영: 더 오래 유지)
   };
 
@@ -58,7 +65,7 @@ export function SetupScreen({
     if (window.confirm(`'${title}' 그룹을 삭제하시겠습니까?`)) {
       try {
         await deleteGroup({ id });
-        showToast(`'${title}' (이)가 삭제되었습니다.`);
+        showToast(`'${title}' 그룹을 삭제했습니다.`);
       } catch (e) {
         console.error(e);
         showToast("삭제 중 오류가 발생했습니다.");
@@ -70,7 +77,7 @@ export function SetupScreen({
     if (!isAuthenticated) {
       try {
         localStorage.setItem('coffeebet_pending_load', 'true');
-        showToast("로그인 후 불러오기 창이 열립니다. 로그인을 진행합니다...");
+        showToast("로그인이 필요합니다. 로그인하면 불러오기 창이 자동으로 열립니다.");
         await onSignIn();
       } catch (e) {
         console.error(e);
@@ -104,7 +111,7 @@ export function SetupScreen({
           title: saveTitle.trim()
         };
         localStorage.setItem('coffeebet_pending_save', JSON.stringify(pendingData));
-        showToast("로그인 후 그룹 저장이 완료됩니다. 로그인을 진행합니다...");
+        showToast("로그인이 필요합니다. 로그인하면 그룹이 자동으로 저장됩니다.");
         setIsSaveModalOpen(false);
         setSaveTitle("");
         await onSignIn();
@@ -120,7 +127,7 @@ export function SetupScreen({
         title: saveTitle.trim(),
         players: players,
       });
-      showToast(`'${saveTitle}' (이)가 저장되었습니다.`);
+      showToast(`'${saveTitle.trim()}' 그룹을 저장했습니다.`);
       setSaveTitle("");
       setIsSaveModalOpen(false);
     } catch (e) {
@@ -134,36 +141,51 @@ export function SetupScreen({
     setIsModalOpen(false);
   };
 
+  // 가중치 기반으로 총액을 100원 단위로 나눈 금액 풀 1회 생성.
+  // 남은 금액을 넘지 않게 클램핑하므로 마지막 몫이 음수가 되는 일이 없다 (재시도 불필요).
+  const rollAmounts = (): number[] => {
+    const weights = players.map(() => Math.random() + 0.1);
+    const weightSum = weights.reduce((a, b) => a + b, 0);
+
+    const amounts: number[] = [];
+    let remaining = totalAmount;
+    for (let i = 0; i < players.length - 1; i++) {
+      const rawAmount = (weights[i] / weightSum) * totalAmount;
+      const amount = Math.min(Math.round(rawAmount / 100) * 100, remaining);
+      amounts.push(amount);
+      remaining -= amount;
+    }
+    amounts.push(remaining);
+
+    // 내림차순(가장 많은 금액을 꼴찌나 1등이 낼 수 있게 자유롭게 정렬, 혹은 게임 재미를 위해 섞거나 내림차순 정렬)
+    amounts.sort((a, b) => b - a);
+    return amounts;
+  };
+
   // 랜덤 금액 분배 로직 (순위별 금액 풀 생성)
-  const calculateRandomAmounts = () => {
+  // isManual: 재분배 버튼을 직접 누른 경우 (금액 미입력 안내 토스트는 이때만 노출)
+  const calculateRandomAmounts = (isManual = false) => {
+    if (totalAmount <= 0) {
+      setRandomAmountsPool(players.map(() => 0));
+      if (isManual) {
+        showToast("총 금액을 먼저 입력해주세요.");
+      }
+      return;
+    }
+
     setIsCalculating(true);
-    
+
     setTimeout(() => {
-      let weights = players.map(() => Math.random() + 0.1); 
-      let weightSum = weights.reduce((a, b) => a + b, 0);
-      
-      let currentSum = 0;
-      const amounts: number[] = [];
-      
-      for (let i = 0; i < players.length - 1; i++) {
-        let rawAmount = (weights[i] / weightSum) * totalAmount;
-        let amount = Math.round(rawAmount / 100) * 100;
-        amounts.push(amount);
-        currentSum += amount;
-      }
-      
-      let lastAmount = totalAmount - currentSum;
-      if (lastAmount < 0) {
-        return calculateRandomAmounts(); 
-      }
-      amounts.push(lastAmount);
-      
-      // 내림차순(가장 많은 금액을 꼴찌나 1등이 낼 수 있게 자유롭게 정렬, 혹은 게임 재미를 위해 섞거나 내림차순 정렬)
-      amounts.sort((a, b) => b - a);
-      
-      setRandomAmountsPool(amounts);
+      setRandomAmountsPool(prev => {
+        // 직전 풀과 동일한 결과가 나오면 다시 굴려서 버튼을 누른 효과가 눈에 보이게 함
+        let amounts = rollAmounts();
+        for (let attempt = 0; attempt < 9 && amounts.join() === prev.join(); attempt++) {
+          amounts = rollAmounts();
+        }
+        return amounts;
+      });
       setIsCalculating(false);
-    }, 400); 
+    }, 400);
   };
 
   useEffect(() => {
@@ -172,7 +194,7 @@ export function SetupScreen({
     } else {
       setRandomAmountsPool([]);
     }
-  }, [gameMode, players.length, totalAmount]); 
+  }, [gameMode, players.length, totalAmount]);
 
   // 로그인 성공 후 로컬 스토리지에 있는 백업 데이터를 자동 저장 처리 및 불러오기 연계
   useEffect(() => {
@@ -189,10 +211,10 @@ export function SetupScreen({
                   title: parsed.title,
                   players: parsed.players
                 });
-                showToast(`'${parsed.title}' (이)가 로그인 계정에 저장되었습니다.`);
+                showToast(`'${parsed.title}' 그룹을 로그인 계정에 저장했습니다.`);
               } catch (e) {
                 console.error("자동 저장 에러:", e);
-                showToast("로그인 후 자동 저장 중 오류가 발생했습니다.");
+                showToast("로그인 후 자동 저장에 실패했습니다.");
               } finally {
                 localStorage.removeItem('coffeebet_pending_save');
               }
@@ -272,9 +294,25 @@ export function SetupScreen({
     setDraggedIndex(null);
   };
 
+  // 새로 추가된 참가자 입력으로 포커스 이동 (이름을 바로 입력할 수 있게)
+  const lastAddedIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!lastAddedIdRef.current) return;
+    const input = document.querySelector<HTMLInputElement>(
+      `.player-item[data-player-id="${lastAddedIdRef.current}"] input`
+    );
+    lastAddedIdRef.current = null;
+    if (input) {
+      input.focus();
+      input.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [players]);
+
   const handleAddPlayer = () => {
     if (players.length >= 20) return;
     const newId = Date.now().toString();
+    lastAddedIdRef.current = newId;
     setPlayers([...players, { id: newId, name: `참가자 ${players.length + 1}` }]);
   };
 
@@ -288,6 +326,22 @@ export function SetupScreen({
   };
 
   const handleStart = () => {
+    if (gameMode === 'random') {
+      if (totalAmount <= 0) {
+        showToast("총 금액을 먼저 입력해주세요.");
+        return;
+      }
+      if (isCalculating || randomAmountsPool.length !== players.length) {
+        showToast("금액을 분배하는 중입니다. 잠시 후 다시 시도해주세요.");
+        return;
+      }
+    }
+
+    // 비어 있는 이름은 기본 이름으로 보정하여 레이스/결과 화면에서 빈 라벨이 생기지 않게 함
+    if (players.some(p => !p.name.trim())) {
+      setPlayers(players.map((p, i) => ({ ...p, name: p.name.trim() || `참가자 ${i + 1}` })));
+    }
+
     let finalAmounts: number[] = [];
     if (gameMode === 'all-in') {
       // 몰빵의 경우: 1명만 전체 금액을 내게 하거나 (게임상 꼴찌), 배열을 만들면
@@ -337,10 +391,11 @@ export function SetupScreen({
           
           {gameMode === 'random' ? (
             <div className="input-group">
-              <input 
-                type="number" 
+              <input
+                type="number"
+                inputMode="numeric"
                 value={totalAmount || ''}
-                onChange={(e) => setTotalAmount(parseInt(e.target.value) || 0)}
+                onChange={(e) => setTotalAmount(Math.max(0, parseInt(e.target.value) || 0))}
                 placeholder="예: 15000"
                 min="0"
                 step="100"
@@ -369,7 +424,7 @@ export function SetupScreen({
               <Users className="icon" /> 참가자 ({players.length}/20)
             </h2>
             {players.length < 20 && (
-              <button className="btn-icon btn-add" onClick={handleAddPlayer}>
+              <button className="btn-icon btn-add" onClick={handleAddPlayer} aria-label="참가자 추가" title="참가자 추가">
                 <Plus size={18} />
               </button>
             )}
@@ -382,6 +437,7 @@ export function SetupScreen({
                 className={`player-item fadeIn ${draggedIndex === index ? 'dragging' : ''}`}
                 draggable
                 data-index={index}
+                data-player-id={p.id}
                 onDragStart={(e) => handleDragStart(e, index)}
                 onDragOver={(e) => handleDragOver(e, index)}
                 onDragEnd={handleDragEnd}
@@ -397,14 +453,15 @@ export function SetupScreen({
                   <GripVertical size={18} />
                 </div>
                 <div className="player-number">{index + 1}</div>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={p.name}
                   onChange={(e) => updatePlayerName(p.id, e.target.value)}
+                  onFocus={(e) => e.target.select()}
                   placeholder="이름"
                 />
                 {players.length > 2 && (
-                  <button className="btn-icon btn-remove" onClick={() => handleRemovePlayer(p.id)}>
+                  <button className="btn-icon btn-remove" onClick={() => handleRemovePlayer(p.id)} aria-label={`${p.name || '참가자'} 삭제`} title="삭제">
                     <X size={16} />
                   </button>
                 )}
@@ -418,16 +475,16 @@ export function SetupScreen({
         {gameMode === 'random' && (
           <div className="random-preview-section fadeIn">
             <div className="preview-header">
-              <h3>예상 당첨 금액 풀</h3>
-              <button 
-                className={`btn-refresh ${isCalculating ? 'spinning' : ''}`} 
-                onClick={calculateRandomAmounts}
+              <h3>순위별 결제 금액</h3>
+              <button
+                className={`btn-refresh ${isCalculating ? 'spinning' : ''}`}
+                onClick={() => calculateRandomAmounts(true)}
               >
                 <Shuffle size={14} /> 재분배
               </button>
             </div>
             <div className={`preview-list ${isCalculating ? 'calculating' : ''}`}>
-              <p style={{fontSize: '0.85rem', color: '#94a3b8', marginBottom: '8px'}}>마블 레이스 결과에 따라 아래 금액 중 하나에 당첨됩니다.</p>
+              <p style={{fontSize: '0.85rem', color: '#94a3b8', marginBottom: '8px'}}>마블 레이스 순위에 따라 아래 금액을 각자 결제하게 됩니다.</p>
               {randomAmountsPool.map((amt, idx) => (
                 <div key={idx} className="preview-item">
                   <span className="name">{idx + 1}위 금액</span>
@@ -466,8 +523,8 @@ export function SetupScreen({
       )}
 
       {isModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content glass-panel">
+        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
+          <div className="modal-content glass-panel" onClick={(e) => e.stopPropagation()}>
             <h3>저장된 참가자 불러오기</h3>
             {!savedGroups ? (
               <p>불러오는 중...</p>
@@ -511,16 +568,16 @@ export function SetupScreen({
 
       {/* 저장 전용 모달 */}
       {isSaveModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content glass-panel">
-            <h3>참가자 현재 목록 저장하기</h3>
+        <div className="modal-overlay" onClick={() => setIsSaveModalOpen(false)}>
+          <div className="modal-content glass-panel" onClick={(e) => e.stopPropagation()}>
+            <h3>현재 참가자 목록 저장하기</h3>
             <p style={{ fontSize: '0.9rem', color: '#94a3b8', marginBottom: '16px' }}>
-              현재 구성된 참가자 {players.length}명을 나만의 그룹으로 저장합니다. (동일 이름 시 덮어쓰기)
+              현재 참가자 {players.length}명을 나만의 그룹으로 저장합니다. (같은 이름이 있으면 덮어씁니다)
             </p>
-            <input 
-              type="text" 
+            <input
+              type="text"
               className="modal-input"
-              placeholder="예: 우리 팀 결제팟"
+              placeholder="예: 우리 팀 커피 모임"
               value={saveTitle}
               onChange={(e) => setSaveTitle(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSaveGroup()}
@@ -529,10 +586,10 @@ export function SetupScreen({
 
             {/* 기존 저장된 목록 불러오기/덮어쓰기 연계 */}
             <div className="modal-saved-groups-section" style={{ marginTop: '20px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '16px', textAlign: 'left' }}>
-              <h4 style={{ fontSize: '0.95rem', fontWeight: '600', marginBottom: '10px', color: '#e2e8f0' }}>기존 저장된 그룹 목록 (클릭 시 이름 자동 입력)</h4>
+              <h4 style={{ fontSize: '0.95rem', fontWeight: '600', marginBottom: '10px', color: '#e2e8f0' }}>저장된 그룹 목록 (선택하면 이름이 입력됩니다)</h4>
               {!isAuthenticated ? (
                 <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
-                  로그인하시면 기존 저장된 목록을 조회하고 불러오거나 덮어쓸 수 있습니다.
+                  로그인하면 저장해 둔 그룹을 확인하고 불러오거나 덮어쓸 수 있습니다.
                 </p>
               ) : !savedGroups ? (
                 <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>불러오는 중...</p>
@@ -569,7 +626,7 @@ export function SetupScreen({
 
             <div className="modal-actions" style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
               <button className="btn-close" onClick={() => setIsSaveModalOpen(false)} style={{ flex: 1, background: 'rgba(255,255,255,0.1)', border: 'none' }}>취소</button>
-              <button className="btn-close" onClick={handleSaveGroup} style={{ flex: 1 }}>저장 확인</button>
+              <button className="btn-close" onClick={handleSaveGroup} style={{ flex: 1 }}>저장하기</button>
             </div>
           </div>
         </div>
@@ -581,7 +638,7 @@ export function SetupScreen({
           <div className="modal-content glass-panel" onClick={(e) => e.stopPropagation()}>
             <h3>최근 게임 리플레이</h3>
             <p style={{ fontSize: '0.9rem', color: '#94a3b8', marginBottom: '16px' }}>
-              최근 진행했던 게임 리플레이 기록입니다. (최대 20개 보관)
+              최근 진행한 게임의 리플레이 기록입니다. (최대 20개 보관)
             </p>
             {!savedReplays ? (
               <p>불러오는 중...</p>

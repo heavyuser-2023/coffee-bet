@@ -3,6 +3,7 @@ import Matter from 'matter-js';
 import type { Player, TrajectoryFrame } from '../types';
 import './RaceScreen.css';
 import { Play, Pause, LogOut } from 'lucide-react';
+import { PLAYER_COLORS } from '../constants';
 
 interface Props {
   players: Player[];
@@ -13,13 +14,6 @@ interface Props {
   raceResults?: string[]; // 리플레이 시 순위 보장을 위해 필요
   onExitReplay?: () => void;
 }
-
-const PLAYER_COLORS = [
-  '#ef4444', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6',
-  '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16',
-  '#a855f7', '#06b6d4', '#eab308', '#f43f5e', '#d946ef',
-  '#0ea5e9', '#22c55e', '#e11d48', '#4f46e5', '#ca8a04'
-];
 
 const DEFAULT_TRAJECTORY: TrajectoryFrame[] = [];
 const DEFAULT_RESULTS: string[] = [];
@@ -402,8 +396,12 @@ export function RaceScreen({
           .filter(item => item.y >= sensorY)
           .sort((a, b) => raceResults.indexOf(a.id) - raceResults.indexOf(b.id))
           .map(item => item.id);
-        
-        setFinishedPlayers(passedIds);
+
+        // 내용이 실제로 바뀐 경우에만 setState (매 틱 새 배열로 인한 불필요한 리렌더 방지)
+        if (passedIds.join(',') !== finishedRef.current.join(',')) {
+          finishedRef.current = passedIds;
+          setFinishedPlayers(passedIds);
+        }
 
         // 끝에 도달했을 때 일시정지
         if (t >= totalDuration && isPlayingRef.current) {

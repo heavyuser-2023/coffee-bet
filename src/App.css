@@ -21,6 +21,11 @@
   margin-bottom: 8px;
 }
 
+/* 로그인 상태 확인 중에도 높이를 유지해 화면 점프 방지 */
+.top-menu-bar {
+  min-height: 38px;
+}
+
 .header p {
   color: var(--text-secondary);
   font-size: 1rem;
