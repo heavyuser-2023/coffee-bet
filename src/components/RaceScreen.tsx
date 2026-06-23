@@ -306,11 +306,19 @@ export function RaceScreen({
     const ground = Bodies.rectangle(width / 2, worldHeight + 20, width, 40, smoothWallOptions);
     Composite.add(engine.world, [finishLine, ...slotWalls, ground]);
 
+    // 출발 시 구슬의 세로 배치 순서를 완전히 랜덤하게 섞음 (참가자 배열 순서와 무관하게 떨어지도록)
+    // Fisher-Yates 셔플로 각 참가자에게 무작위 세로 슬롯을 배정
+    const dropOrder = players.map((_, i) => i);
+    for (let i = dropOrder.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [dropOrder[i], dropOrder[j]] = [dropOrder[j], dropOrder[i]];
+    }
+
     // Marbles
     const marbles = players.map((p, index) => {
       // 일반 모드에서는 랜덤 분포 출발, 리플레이 시에는 첫 프레임 데이터 좌표로 우선 초기화
       let startX = width / 2 + (Math.random() * 20 - 10);
-      let startY = -(index * 25) - 20;
+      let startY = -(dropOrder[index] * 25) - 20;
 
       if (isReplay && replayTrajectory.length > 0) {
         const startFrame = replayTrajectory[0];
