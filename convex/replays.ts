@@ -2,6 +2,10 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { auth } from "./auth";
 
+// 식별자(로그인 userId / 비로그인 deviceId)당 보관하는 리플레이 최대 개수.
+// 초과 시 가장 오래된 리플레이와 그에 연결된 영상 파일을 함께 삭제해 서버 용량을 상한 내로 유지한다.
+const MAX_REPLAYS_PER_IDENTITY = 10;
+
 /**
  * 💡 리플레이 영상 업로드용 단기 URL을 발급합니다.
  * 클라이언트는 이 URL로 녹화된 영상(Blob)을 POST 업로드한 뒤,
@@ -16,8 +20,8 @@ export const generateUploadUrl = mutation({
 
 /**
  * 💡 게임 플레이 리플레이를 저장합니다.
- * 기기 식별자(deviceId) 또는 로그인 유저 ID(userId) 당 최대 20개까지만 보관되며,
- * 초과 시 가장 오래된 리플레이가 자동 삭제됩니다.
+ * 기기 식별자(deviceId) 또는 로그인 유저 ID(userId) 당 MAX_REPLAYS_PER_IDENTITY(10)개까지만 보관되며,
+ * 초과 시 가장 오래된 리플레이가 (연결된 영상 파일과 함께) 자동 삭제됩니다.
  *
  * videoStorageId(녹화 영상)가 있으면 재생 시 영상을 그대로 틀어 100% 동일하게 재현하며,
  * trajectory(궤적)는 영상 미지원 환경 폴백 및 구버전 호환을 위해 함께 보관합니다.
@@ -58,9 +62,9 @@ export const saveReplay = mutation({
         .collect();
     }
 
-    // 20개 상한 관리: 새 리플레이를 저장하면 20개가 넘어가므로 오래된 순서대로 삭제
-    if (existingReplays.length >= 20) {
-      const deleteCount = existingReplays.length - 20 + 1;
+    // 상한 관리: 새 리플레이를 저장하면 상한을 넘으므로 오래된 순서대로 삭제
+    if (existingReplays.length >= MAX_REPLAYS_PER_IDENTITY) {
+      const deleteCount = existingReplays.length - MAX_REPLAYS_PER_IDENTITY + 1;
       for (let i = 0; i < deleteCount; i++) {
         const old = existingReplays[i];
         // 연결된 녹화 영상이 있으면 스토리지에서도 함께 제거(고아 파일 방지)
