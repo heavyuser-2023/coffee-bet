@@ -27,6 +27,8 @@ export interface ReplayData {
   amountsPool: number[];
   gameMode: GameMode;
   raceResults: string[];
-  trajectory: string; // JSON.stringify(TrajectoryFrame[])
+  videoStorageId?: string; // 녹화 영상 스토리지 ID (신규 방식)
+  videoUrl?: string | null; // getReplay가 해석해 반환하는 재생용 URL
+  trajectory?: string; // JSON.stringify(TrajectoryFrame[]) — 폴백/구버전 호환
   createdAt?: number;
 }

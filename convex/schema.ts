@@ -29,7 +29,10 @@ export default defineSchema({
     amountsPool: v.array(v.number()),
     gameMode: v.string(),
     raceResults: v.array(v.string()),
-    trajectory: v.string(), // JSON Stringified TrajectoryFrame[]
+    // 신규 방식: 라이브 레이스를 그대로 녹화한 영상(Convex 파일 스토리지)을 재생 → 100% 동일 재현
+    videoStorageId: v.optional(v.id("_storage")),
+    // 구(舊) 방식 호환 및 영상 미지원 환경(WKWebView 등) 폴백용 궤적 데이터
+    trajectory: v.optional(v.string()), // JSON Stringified TrajectoryFrame[]
     createdAt: v.number(),
   })
     .index("by_userId", ["userId"])

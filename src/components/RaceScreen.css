@@ -88,6 +88,14 @@
   display: block;
 }
 
+/* 영상 기반 리플레이: 캔버스와 동일한 레이아웃으로 표시 */
+.canvas-container .replay-video {
+  border-radius: 24px;
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
 /* Replay Controls */
 .replay-controls {
   position: absolute;

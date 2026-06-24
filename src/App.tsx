@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import './App.css'
 import { SetupScreen } from './components/SetupScreen'
 import { RaceScreen } from './components/RaceScreen'
+import { ReplayScreen } from './components/ReplayScreen'
 import { ResultScreen } from './components/ResultScreen'
 import type { GameMode, Player, GameState, TrajectoryFrame } from './types'
 import { useAuthActions } from '@convex-dev/auth/react'
@@ -87,7 +88,8 @@ function App() {
   });
   const [amountsPool, setAmountsPool] = useState<number[]>([]);
   const [raceResults, setRaceResults] = useState<string[]>([]); // array of player ids in order of finish
-  const [trajectory, setTrajectory] = useState<TrajectoryFrame[]>([]); // 레이스 궤적 기록 저장
+  const [trajectory, setTrajectory] = useState<TrajectoryFrame[]>([]); // 레이스 궤적 기록 저장 (폴백용)
+  const [videoBlob, setVideoBlob] = useState<Blob | null>(null); // 녹화된 레이스 영상 (신규 방식)
 
   // 기기 식별자 관리
   const [deviceId] = useState<string>(() => {
@@ -177,11 +179,12 @@ function App() {
     setGameState('race');
   }
 
-  const handleRaceFinish = (results: string[], capturedTrajectory?: TrajectoryFrame[]) => {
+  const handleRaceFinish = (results: string[], capturedTrajectory?: TrajectoryFrame[], capturedVideo?: Blob) => {
     setRaceResults(results);
     if (capturedTrajectory) {
       setTrajectory(capturedTrajectory);
     }
+    setVideoBlob(capturedVideo ?? null);
     setGameState('result');
   }
 
@@ -190,6 +193,7 @@ function App() {
     setAmountsPool([]);
     setRaceResults([]);
     setTrajectory([]);
+    setVideoBlob(null);
   }
 
   const handleExitReplay = () => {
@@ -296,20 +300,33 @@ function App() {
           gameMode={gameMode}
           onRestart={handleRestart}
           trajectory={trajectory}
+          videoBlob={videoBlob}
           deviceId={deviceId}
         />
       )}
 
+      {/* 리플레이 재생: 녹화 영상이 있으면 영상을 그대로 재생(100% 동일), 없으면 궤적 기반 폴백 */}
       {!isReplayLoading && gameState === 'replay' && replayData && (
-        <RaceScreen 
-          players={replayData.players}
-          amountsPool={replayData.amountsPool}
-          onFinish={() => {}}
-          isReplay={true}
-          replayTrajectory={JSON.parse(replayData.trajectory)}
-          raceResults={replayData.raceResults}
-          onExitReplay={handleExitReplay}
-        />
+        replayData.videoUrl ? (
+          <ReplayScreen
+            players={replayData.players}
+            videoUrl={replayData.videoUrl}
+            amountsPool={replayData.amountsPool}
+            raceResults={replayData.raceResults}
+            trajectory={replayData.trajectory ?? undefined}
+            onExitReplay={handleExitReplay}
+          />
+        ) : replayData.trajectory ? (
+          <RaceScreen
+            players={replayData.players}
+            amountsPool={replayData.amountsPool}
+            onFinish={() => {}}
+            isReplay={true}
+            replayTrajectory={JSON.parse(replayData.trajectory)}
+            raceResults={replayData.raceResults}
+            onExitReplay={handleExitReplay}
+          />
+        ) : null
       )}
     </div>
   )

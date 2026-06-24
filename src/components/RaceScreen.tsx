@@ -8,7 +8,7 @@ import { PLAYER_COLORS } from '../constants';
 interface Props {
   players: Player[];
   amountsPool: number[];
-  onFinish: (results: string[], trajectory?: TrajectoryFrame[]) => void;
+  onFinish: (results: string[], trajectory?: TrajectoryFrame[], videoBlob?: Blob) => void;
   isReplay?: boolean;
   replayTrajectory?: TrajectoryFrame[];
   raceResults?: string[]; // 리플레이 시 순위 보장을 위해 필요
@@ -22,6 +22,34 @@ const DEFAULT_RESULTS: string[] = [];
 const FIXED_STEP_MS = 16.66;
 // 궤적 캡처 간격(실시간 기준, ≈30fps). 핀 충돌 곡선을 충분히 표현하면서 payload 부담을 억제
 const SAMPLE_MS = 33;
+
+// 녹화 영상 품질(비트레이트). 짧은 레이스라 넉넉히 잡아 라이브와 동일한 선명도를 보장
+const VIDEO_BITS_PER_SECOND = 8_000_000;
+// 캔버스 캡처 프레임레이트(라이브 렌더 루프 ≈60fps와 정합)
+const CAPTURE_FPS = 60;
+
+// 현재 브라우저가 지원하는 녹화 컨테이너/코덱을 우선순위대로 탐색.
+// mp4(H.264)를 우선해 iOS Safari를 포함한 모든 기기에서 공유 영상이 재생되도록 한다.
+// (mp4 녹화 미지원 환경은 webm으로 폴백 → 재생 측에서도 webm 미지원이면 궤적 폴백)
+function pickRecorderMime(): string {
+  if (typeof MediaRecorder === 'undefined') return '';
+  const candidates = [
+    'video/mp4;codecs=avc1.42E01E',
+    'video/mp4;codecs=h264',
+    'video/mp4',
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
+    'video/webm',
+  ];
+  for (const c of candidates) {
+    try {
+      if (MediaRecorder.isTypeSupported(c)) return c;
+    } catch {
+      /* 일부 환경에서 isTypeSupported 미구현 → 무시하고 다음 후보 */
+    }
+  }
+  return '';
+}
 
 export function RaceScreen({ 
   players, 
@@ -43,6 +71,11 @@ export function RaceScreen({
   const leaderRef = useRef<string | null>(null);
   const slowMoTimeoutRef = useRef<number | null>(null);
   const finishTimeoutRef = useRef<number | null>(null);
+
+  // 라이브 레이스 녹화용 레퍼런스 (캔버스 → MediaRecorder → Blob)
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const captureStreamRef = useRef<MediaStream | null>(null);
 
   // 리플레이 전용 상태 및 레퍼런스
   const [isPlaying, setIsPlaying] = useState(true);
@@ -117,6 +150,40 @@ export function RaceScreen({
     render.canvas.style.width = '100%';
     render.canvas.style.height = 'auto';
     renderRef.current = render;
+
+    // ------------------ 라이브 레이스 영상 녹화 시작 ------------------
+    // 캔버스에 그려지는 모든 픽셀(카메라 패닝·슬로우모션·구슬 경로)을 그대로 녹화해
+    // 재생 시 100% 동일하게 재현한다. 미지원 환경에서는 자동으로 궤적 폴백을 사용.
+    recorderRef.current = null;
+    recordedChunksRef.current = [];
+    captureStreamRef.current = null;
+    if (!isReplay) {
+      const canvasEl = render.canvas as HTMLCanvasElement & {
+        captureStream?: (fps?: number) => MediaStream;
+      };
+      if (typeof MediaRecorder !== 'undefined' && typeof canvasEl.captureStream === 'function') {
+        try {
+          const mimeType = pickRecorderMime();
+          const stream = canvasEl.captureStream(CAPTURE_FPS);
+          captureStreamRef.current = stream;
+          const recorder = new MediaRecorder(
+            stream,
+            mimeType
+              ? { mimeType, videoBitsPerSecond: VIDEO_BITS_PER_SECOND }
+              : { videoBitsPerSecond: VIDEO_BITS_PER_SECOND }
+          );
+          recorder.ondataavailable = (e: BlobEvent) => {
+            if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data);
+          };
+          recorder.start();
+          recorderRef.current = recorder;
+        } catch (err) {
+          console.warn('영상 녹화를 시작할 수 없어 궤적 기반 리플레이로 대체합니다.', err);
+          recorderRef.current = null;
+          captureStreamRef.current = null;
+        }
+      }
+    }
 
     // Boundary walls
     const wallOptions = { 
@@ -519,6 +586,30 @@ export function RaceScreen({
       }
     });
 
+    // 레이스 종료 처리: 녹화를 멈춰 Blob을 만든 뒤 결과/궤적/영상을 부모로 전달
+    const finalizeRace = () => {
+      const recorder = recorderRef.current;
+      if (recorder && recorder.state !== 'inactive') {
+        recorder.onstop = () => {
+          const chunks = recordedChunksRef.current;
+          const blob =
+            chunks.length > 0
+              ? new Blob(chunks, { type: recorder.mimeType || 'video/webm' })
+              : undefined;
+          captureStreamRef.current?.getTracks().forEach((t) => t.stop());
+          onFinish(finishedRef.current, trajectoryRef.current, blob);
+        };
+        try {
+          recorder.stop();
+        } catch {
+          captureStreamRef.current?.getTracks().forEach((t) => t.stop());
+          onFinish(finishedRef.current, trajectoryRef.current);
+        }
+      } else {
+        onFinish(finishedRef.current, trajectoryRef.current);
+      }
+    };
+
     // 충돌 처리 (일반 모드 전용)
     if (!isReplay) {
       Events.on(engine, 'collisionStart', (event) => {
@@ -542,7 +633,7 @@ export function RaceScreen({
                   clearTimeout(finishTimeoutRef.current);
                 }
                 finishTimeoutRef.current = window.setTimeout(() => {
-                  onFinish(finishedRef.current, trajectoryRef.current);
+                  finalizeRace();
                 }, 2000);
               }
             }
@@ -601,6 +692,18 @@ export function RaceScreen({
       if (finishTimeoutRef.current) {
         clearTimeout(finishTimeoutRef.current);
       }
+      // 레이스 도중 화면을 벗어나면 녹화도 정리(누수 방지)
+      if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+        recorderRef.current.onstop = null;
+        try {
+          recorderRef.current.stop();
+        } catch {
+          /* 이미 종료된 경우 무시 */
+        }
+      }
+      captureStreamRef.current?.getTracks().forEach((t) => t.stop());
+      recorderRef.current = null;
+      captureStreamRef.current = null;
       if (engineRef.current) {
          Events.off(engineRef.current, 'beforeUpdate');
          if (!isReplay) {

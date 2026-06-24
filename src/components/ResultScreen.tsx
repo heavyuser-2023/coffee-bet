@@ -5,6 +5,7 @@ import { RotateCcw, Trophy, Save, Share2 } from 'lucide-react';
 import { useMutation, useConvexAuth } from 'convex/react';
 
 import { api } from '../../convex/_generated/api';
+import type { Id } from '../../convex/_generated/dataModel';
 import { PLAYER_COLORS } from '../constants';
 
 interface Props {
@@ -14,21 +15,24 @@ interface Props {
   gameMode: GameMode;
   onRestart: () => void;
   trajectory?: TrajectoryFrame[];
+  videoBlob?: Blob | null;
   deviceId: string;
 }
 
-export function ResultScreen({ 
-  players, 
-  amountsPool, 
-  raceResults, 
-  gameMode, 
+export function ResultScreen({
+  players,
+  amountsPool,
+  raceResults,
+  gameMode,
   onRestart,
   trajectory,
+  videoBlob,
   deviceId
 }: Props) {
   const { isAuthenticated } = useConvexAuth();
   const saveGroup = useMutation(api.participants.saveGroup);
   const saveReplayMutation = useMutation(api.replays.saveReplay);
+  const generateUploadUrl = useMutation(api.replays.generateUploadUrl);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [groupTitle, setGroupTitle] = useState('');
@@ -53,19 +57,46 @@ export function ResultScreen({
 
   useEffect(() => {
     if (hasRequestedSave.current) return;
-    if (!trajectory || trajectory.length === 0) return;
+    const hasTrajectory = !!trajectory && trajectory.length > 0;
+    if (!videoBlob && !hasTrajectory) return;
 
     const performAutoSave = async () => {
       hasRequestedSave.current = true;
       setIsAutoSaving(true);
       try {
+        // 1) 녹화 영상이 있으면 Convex 스토리지에 업로드 → storageId 확보
+        let videoStorageId: Id<"_storage"> | undefined = undefined;
+        if (videoBlob) {
+          try {
+            const uploadUrl = await generateUploadUrl();
+            // 저장 Content-Type은 컨테이너 타입만 남김(예: video/mp4) — 일부 엄격한 플레이어가
+            // "video/webm;codecs=vp9" 같은 비표준 헤더를 거부하는 문제 방지
+            const contentType = (videoBlob.type || "video/webm").split(";")[0];
+            const res = await fetch(uploadUrl, {
+              method: "POST",
+              headers: { "Content-Type": contentType },
+              body: videoBlob,
+            });
+            if (res.ok) {
+              const { storageId } = await res.json();
+              videoStorageId = storageId as Id<"_storage">;
+            } else {
+              console.error("영상 업로드 실패:", res.status);
+            }
+          } catch (uploadErr) {
+            console.error("영상 업로드 중 오류:", uploadErr);
+          }
+        }
+
+        // 2) 메타데이터 + (영상 storageId | 궤적 폴백) 저장
         const replayId = await saveReplayMutation({
           deviceId,
           players: players.map(p => ({ id: p.id, name: p.name })),
           amountsPool,
           gameMode,
           raceResults,
-          trajectory: JSON.stringify(trajectory)
+          videoStorageId,
+          trajectory: hasTrajectory ? JSON.stringify(trajectory) : undefined,
         });
         setAutoSavedId(replayId);
       } catch (e) {
@@ -78,12 +109,14 @@ export function ResultScreen({
     performAutoSave();
   }, [
     saveReplayMutation,
+    generateUploadUrl,
     deviceId,
     players,
     amountsPool,
     gameMode,
     raceResults,
-    trajectory
+    trajectory,
+    videoBlob
   ]);
 
   const handleSaveGroup = () => {
@@ -242,10 +275,10 @@ export function ResultScreen({
       </div>
 
       <div className="action-buttons">
-        <button 
-          className="share-replay-btn" 
-          onClick={handleShareReplay} 
-          disabled={isAutoSaving || !autoSavedId || !trajectory || trajectory.length === 0}
+        <button
+          className="share-replay-btn"
+          onClick={handleShareReplay}
+          disabled={isAutoSaving || !autoSavedId}
         >
           <Share2 size={20} className="icon-mr" /> 
           {isAutoSaving ? "리플레이 저장 중..." : "게임 리플레이 공유"}

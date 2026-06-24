@@ -3,9 +3,24 @@ import { mutation, query } from "./_generated/server";
 import { auth } from "./auth";
 
 /**
+ * 💡 리플레이 영상 업로드용 단기 URL을 발급합니다.
+ * 클라이언트는 이 URL로 녹화된 영상(Blob)을 POST 업로드한 뒤,
+ * 반환받은 storageId를 saveReplay에 전달합니다.
+ */
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+/**
  * 💡 게임 플레이 리플레이를 저장합니다.
- * 기기 식별자(deviceId) 또는 로그인 유저 ID(userId) 당 최대 20개까지만 보관되며, 
+ * 기기 식별자(deviceId) 또는 로그인 유저 ID(userId) 당 최대 20개까지만 보관되며,
  * 초과 시 가장 오래된 리플레이가 자동 삭제됩니다.
+ *
+ * videoStorageId(녹화 영상)가 있으면 재생 시 영상을 그대로 틀어 100% 동일하게 재현하며,
+ * trajectory(궤적)는 영상 미지원 환경 폴백 및 구버전 호환을 위해 함께 보관합니다.
  */
 export const saveReplay = mutation({
   args: {
@@ -19,7 +34,8 @@ export const saveReplay = mutation({
     amountsPool: v.array(v.number()),
     gameMode: v.string(),
     raceResults: v.array(v.string()),
-    trajectory: v.string(), // JSON.stringify(TrajectoryFrame[])
+    videoStorageId: v.optional(v.id("_storage")),
+    trajectory: v.optional(v.string()), // JSON.stringify(TrajectoryFrame[])
   },
   handler: async (ctx, args) => {
     const userId = await auth.getUserId(ctx); // 로그인 상태이면 ID 반환, 비로그인이면 null
@@ -46,7 +62,12 @@ export const saveReplay = mutation({
     if (existingReplays.length >= 20) {
       const deleteCount = existingReplays.length - 20 + 1;
       for (let i = 0; i < deleteCount; i++) {
-        await ctx.db.delete(existingReplays[i]._id);
+        const old = existingReplays[i];
+        // 연결된 녹화 영상이 있으면 스토리지에서도 함께 제거(고아 파일 방지)
+        if (old.videoStorageId) {
+          await ctx.storage.delete(old.videoStorageId);
+        }
+        await ctx.db.delete(old._id);
       }
     }
 
@@ -58,6 +79,7 @@ export const saveReplay = mutation({
       amountsPool: args.amountsPool,
       gameMode: args.gameMode,
       raceResults: args.raceResults,
+      videoStorageId: args.videoStorageId,
       trajectory: args.trajectory,
       createdAt: Date.now(),
     });
@@ -76,7 +98,13 @@ export const getReplay = query({
     try {
       const normalizedId = ctx.db.normalizeId("replays", args.id);
       if (!normalizedId) return null;
-      return await ctx.db.get(normalizedId);
+      const replay = await ctx.db.get(normalizedId);
+      if (!replay) return null;
+      // 녹화 영상이 있으면 재생 가능한 단기 URL을 함께 반환(없으면 궤적 폴백)
+      const videoUrl = replay.videoStorageId
+        ? await ctx.storage.getUrl(replay.videoStorageId)
+        : null;
+      return { ...replay, videoUrl };
     } catch (e) {
       console.error("리플레이 조회 중 오류:", e);
       return null;
