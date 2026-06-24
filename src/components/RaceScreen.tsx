@@ -23,6 +23,11 @@ const FIXED_STEP_MS = 16.66;
 // 궤적 캡처 간격(실시간 기준, ≈30fps). 핀 충돌 곡선을 충분히 표현하면서 payload 부담을 억제
 const SAMPLE_MS = 33;
 
+// 캔버스 비트맵에 직접 칠하는 불투명 배경색.
+// 라이브 화면의 실제 배경(body --bg-color #0f111a 위에 glass-panel rgba(255,255,255,0.05))을
+// 합성한 색과 동일하게 맞춰, 라이브와 녹화 영상의 배경/반투명 요소 색이 어긋나지 않게 한다.
+const CANVAS_BG_COLOR = '#1b1d25';
+
 // 녹화 영상 품질(비트레이트 상한). 캔버스가 375x500로 작고 색이 단순해
 // 1.5Mbps + 30fps 조합으로도 충분한 선명도를 유지하면서 파일 용량(서버 저장량)을 최소화
 const VIDEO_BITS_PER_SECOND = 1_500_000;
@@ -140,7 +145,7 @@ export function RaceScreen({
       options: {
         width,
         height: viewHeight,
-        background: 'transparent',
+        background: CANVAS_BG_COLOR,
         wireframes: false,
         hasBounds: true, // Enable bounds for camera panning
         pixelRatio: 1 // 고정 해상도를 위해 pixelRatio 1로 고정
@@ -151,6 +156,21 @@ export function RaceScreen({
     render.canvas.style.width = '100%';
     render.canvas.style.height = 'auto';
     renderRef.current = render;
+
+    // ------------------ 캔버스 비트맵 배경 채우기 ------------------
+    // Matter는 매 프레임 비트맵을 '투명'으로 지우고 배경은 CSS로만 입힌다(canvas.style.background).
+    // 그래서 captureStream으로 캡처되는 비트맵은 투명 → 알파 미지원 mp4 녹화 시 검정으로 합성되어
+    // 라이브(배경 비쳐 보임)와 색이 달라진다. afterRender에서 destination-over로 '바디 뒤'에 불투명
+    // 배경을 직접 그려넣어, 라이브와 녹화의 배경 및 반투명(rgba) 요소 색을 완전히 일치시킨다.
+    Events.on(render, 'afterRender', () => {
+      const ctx = render.context;
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0); // 카메라(bounds) 변환 무시, 전체 비트맵 기준으로 채움
+      ctx.globalCompositeOperation = 'destination-over';
+      ctx.fillStyle = CANVAS_BG_COLOR;
+      ctx.fillRect(0, 0, render.canvas.width, render.canvas.height);
+      ctx.restore();
+    });
 
     // ------------------ 라이브 레이스 영상 녹화 시작 ------------------
     // 캔버스에 그려지는 모든 픽셀(카메라 패닝·슬로우모션·구슬 경로)을 그대로 녹화해
@@ -705,6 +725,7 @@ export function RaceScreen({
       captureStreamRef.current?.getTracks().forEach((t) => t.stop());
       recorderRef.current = null;
       captureStreamRef.current = null;
+      Events.off(render, 'afterRender');
       if (engineRef.current) {
          Events.off(engineRef.current, 'beforeUpdate');
          if (!isReplay) {
