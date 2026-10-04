@@ -79,6 +79,8 @@ npm run android:release
 keytool -printcert -jarfile android/app/build/outputs/bundle/release/app-release.aab
 ```
 
+> 📦 Android 스플래시 이미지(`android/app/src/main/res/drawable*/splash.webp`)는 용량 절감을 위해 PNG에서 WebP(q90)로 변환해 두었습니다(19MB → 0.9MB). `@capacitor/assets`로 아이콘/스플래시를 다시 생성하면 `splash.png`가 함께 생겨 리소스 중복 오류가 나므로, 생성 후 PNG를 WebP로 다시 변환하세요: `for f in android/app/src/main/res/drawable*/splash.png; do cwebp -q 90 -m 6 "$f" -o "${f%.png}.webp" && rm "$f"; done`
+>
 > ⚠️ 비밀번호가 설정되지 않으면 **서명되지 않은** AAB가 만들어지고 Play 업로드가 거부됩니다. 이 경우 빌드 로그에 `[coffee-bet] 서명 정보가 없어…` 경고가 출력됩니다.
 >
 > ⚠️ Android Studio의 `Generate Signed Bundle / APK` 대화상자를 쓸 경우, 반드시 `Choose existing…`으로 루트의 `android.keystore`를 고르고 별칭을 `android`로 지정하세요. `Create new…`로 새 키를 만들면 Play가 업로드를 거부합니다.
