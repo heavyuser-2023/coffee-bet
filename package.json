@@ -10,6 +10,7 @@
     "build:mobile": "VITE_BUILD_TARGET=mobile tsc -b && VITE_BUILD_TARGET=mobile vite build",
     "cap:sync": "npx cap sync",
     "cap:build": "npm run build:mobile && npx cap sync",
+    "android:release": "npm run cap:build && cd android && JAVA_HOME=\"${JAVA_HOME_21:-/Applications/Android Studio.app/Contents/jbr/Contents/Home}\" ./gradlew bundleRelease",
     "lint": "eslint .",
     "preview": "vite preview",
     "predeploy": "npm run build",

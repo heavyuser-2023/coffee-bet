@@ -47,7 +47,41 @@ npm run cap:build
 npx cap open android
 ```
 - **개발/테스트**: Android Studio 상단의 ▶️ (Run) 버튼을 눌러 에뮬레이터나 연결된 실기기에서 앱을 실행합니다.
-- **출시 빌드**: 메뉴에서 `Build` > `Generate Signed Bundle / APK`를 선택하고, 기존 프로젝트 폴더에 있는 `android.keystore` 파일을 서명 키로 지정하여 릴리즈 번들(AAB)을 만듭니다.
+- **출시 빌드**: 아래 "출시 빌드 (AAB 서명)" 참고.
+
+#### [2-1단계] 출시 빌드 (AAB 서명)
+
+서명 키는 프로젝트 루트의 `android.keystore`(별칭 `android`)이며, 이 키로 서명해야만 Play에 업로드할 수 있습니다.
+
+비밀번호는 저장소에 두지 않고 `~/.gradle/gradle.properties`에서 읽습니다. 최초 1회만 아래 값을 설정하세요.
+
+```properties
+COFFEEBET_STORE_PASSWORD=<키스토어 비밀번호>
+COFFEEBET_KEY_PASSWORD=<키 비밀번호>
+COFFEEBET_STORE_FILE=../android.keystore
+COFFEEBET_KEY_ALIAS=android
+```
+
+설정 후에는 커맨드 한 줄로 서명된 AAB가 만들어집니다.
+
+```bash
+# 웹 에셋 빌드·동기화 후 서명된 릴리즈 번들 생성
+npm run android:release
+```
+
+> Capacitor 8은 JDK 21이 필요합니다. 스크립트는 Android Studio 번들 JDK(`/Applications/Android Studio.app/Contents/jbr/Contents/Home`)를 사용하며, 다른 JDK 21을 쓰려면 `JAVA_HOME_21` 환경변수로 경로를 지정하세요.
+
+출력: `android/app/build/outputs/bundle/release/app-release.aab`
+
+업로드 전 서명 지문 확인 (`AC:9C:16:55:…` 이어야 함):
+
+```bash
+keytool -printcert -jarfile android/app/build/outputs/bundle/release/app-release.aab
+```
+
+> ⚠️ 비밀번호가 설정되지 않으면 **서명되지 않은** AAB가 만들어지고 Play 업로드가 거부됩니다. 이 경우 빌드 로그에 `[coffee-bet] 서명 정보가 없어…` 경고가 출력됩니다.
+>
+> ⚠️ Android Studio의 `Generate Signed Bundle / APK` 대화상자를 쓸 경우, 반드시 `Choose existing…`으로 루트의 `android.keystore`를 고르고 별칭을 `android`로 지정하세요. `Create new…`로 새 키를 만들면 Play가 업로드를 거부합니다.
 
 #### [3단계] iOS 실행 및 테스트
 

@@ -1,5 +1,12 @@
 apply plugin: 'com.android.application'
 
+// 릴리스 서명 정보는 저장소에 두지 않고 ~/.gradle/gradle.properties 에서 읽는다.
+// 설정 방법은 README의 "출시 빌드" 항목 참고.
+def hasSigningProps = project.hasProperty('COFFEEBET_STORE_PASSWORD') && project.hasProperty('COFFEEBET_KEY_PASSWORD')
+if (!hasSigningProps) {
+    logger.warn("[coffee-bet] 서명 정보가 없어 release 빌드가 서명되지 않습니다. Play 업로드가 불가하니 ~/.gradle/gradle.properties 를 확인하세요.")
+}
+
 android {
     namespace = "com.heavyuser73.coffeebet"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,7 +14,7 @@ android {
         applicationId "com.heavyuser73.coffeebet"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
+        versionCode 4
         versionName "1.0.2"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
@@ -16,8 +23,21 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (hasSigningProps) {
+            release {
+                storeFile rootProject.file(project.findProperty('COFFEEBET_STORE_FILE') ?: '../android.keystore')
+                storePassword COFFEEBET_STORE_PASSWORD
+                keyAlias project.findProperty('COFFEEBET_KEY_ALIAS') ?: 'android'
+                keyPassword COFFEEBET_KEY_PASSWORD
+            }
+        }
+    }
     buildTypes {
         release {
+            if (hasSigningProps) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
