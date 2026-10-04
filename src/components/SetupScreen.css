@@ -402,6 +402,37 @@
   cursor: grabbing !important;
 }
 
+/* 리플레이 / 당첨 통계 버튼 줄 */
+.history-btn-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.history-btn-row .replay-list-btn {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 12px;
+  white-space: nowrap;
+}
+
+.stats-open-btn {
+  background: rgba(245, 158, 11, 0.06);
+  border-color: rgba(245, 158, 11, 0.3);
+  color: #fcd34d;
+}
+
+.stats-open-btn:hover {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: #f59e0b;
+}
+
+.replay-loser {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #fca5a5;
+}
+
 /* Replay List Custom Styles */
 .replay-list-btn {
   width: 100%;

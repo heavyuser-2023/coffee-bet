@@ -37,4 +37,25 @@ export default defineSchema({
   })
     .index("by_userId", ["userId"])
     .index("by_deviceId", ["deviceId"]),
+
+  // 게임 1판의 결과(누가 걸렸는지) 기록 — 주간/월간 당첨 통계의 원천 데이터.
+  // 리플레이(최대 10개 보관)와 달리 통계를 위해 계속 누적한다. 참가자는 이름으로 식별한다.
+  gameRecords: defineTable({
+    userId: v.optional(v.string()), // 로그인 유저 ID
+    deviceId: v.string(), // 비로그인/로그인 공통 기기 고유 ID
+    clientGameId: v.string(), // 클라이언트가 만든 게임 ID (중복 저장 방지)
+    gameMode: v.string(),
+    results: v.array(
+      v.object({
+        name: v.string(),
+        rank: v.number(), // 레이스 도착 순위 (1부터)
+        amount: v.number(), // 이 사람이 낸 금액
+        isLoser: v.boolean(), // 이번 판에 '걸린' 사람인지
+      })
+    ),
+    createdAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_deviceId", ["deviceId"])
+    .index("by_clientGameId", ["clientGameId"]),
 });

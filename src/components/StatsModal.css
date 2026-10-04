@@ -1,0 +1,383 @@
+/* 당첨 기록·통계 모달 (공용 .modal-content 규칙보다 우선하도록 두 클래스로 지정) */
+.modal-content.stats-modal {
+  max-width: 440px;
+  max-height: calc(100vh - 40px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  padding: 22px 20px 20px;
+  text-align: left;
+  background: rgba(17, 19, 30, 0.96);
+}
+
+.stats-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.stats-modal .stats-title-row h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.stats-close-icon {
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 6px;
+  display: flex;
+}
+
+.stats-close-icon:hover {
+  color: white;
+}
+
+.stats-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 12px;
+  margin-bottom: 12px;
+}
+
+.stats-tab {
+  flex: 1;
+  padding: 8px 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.95rem;
+  border-radius: 9px;
+}
+
+.stats-tab.active {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: white;
+  box-shadow: 0 2px 10px rgba(139, 92, 246, 0.35);
+}
+
+.stats-period-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.stats-period-nav button {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.06);
+  color: white;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.stats-period-nav button:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.stats-period-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+
+.stats-period-label strong {
+  font-size: 1rem;
+}
+
+.stats-period-label span {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.stats-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0 -6px 14px;
+  padding: 0 6px;
+}
+
+.stats-body::-webkit-scrollbar {
+  width: 6px;
+}
+.stats-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+}
+
+.modal-content .stats-empty {
+  text-align: center;
+  color: var(--text-secondary);
+  margin: 28px 0;
+}
+
+.stats-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.stats-summary > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  min-width: 0;
+}
+
+.stats-summary-value {
+  font-weight: 800;
+  font-size: 1.05rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.stats-summary-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.stats-section-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin: 4px 0 8px;
+}
+
+.stats-ranking,
+.stats-games {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+
+.stats-person {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 8px 10px;
+  transition: border-color 0.2s;
+}
+
+.stats-person.open {
+  border-color: rgba(139, 92, 246, 0.4);
+}
+
+.stats-person-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) 72px auto;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  color: white;
+  padding: 0;
+  text-align: left;
+  border-radius: 0;
+}
+
+.stats-person-row:active {
+  transform: none;
+}
+
+.stats-rank {
+  text-align: center;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.stats-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stats-bar {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.stats-bar > span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #f59e0b, var(--danger));
+  border-radius: 4px;
+}
+
+.stats-losses {
+  font-weight: 700;
+  color: #fca5a5;
+  min-width: 34px;
+  text-align: right;
+}
+
+.stats-person-sub {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin: 2px 0 0 34px;
+}
+
+.stats-detail {
+  margin: 8px 0 2px 34px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: #e2e8f0;
+}
+
+.stats-detail-dots {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.stats-detail-dots-label {
+  color: var(--text-secondary);
+  margin-right: 2px;
+}
+
+.stats-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.stats-dot.lose {
+  background: var(--danger);
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
+}
+
+.stats-dot.survive {
+  border: 2px solid var(--success);
+}
+
+.stats-game {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 10px;
+  font-size: 0.82rem;
+}
+
+.stats-game-time {
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.stats-game-loser {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stats-game-count {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.stats-game-delete {
+  background: transparent;
+  color: #64748b;
+  padding: 4px;
+  display: flex;
+}
+
+.stats-game-delete:hover {
+  color: var(--danger);
+}
+
+.modal-content .stats-more {
+  text-align: center;
+  font-size: 0.8rem;
+  margin: -10px 0 12px;
+}
+
+/* 결과 화면: 오늘의 커피 통계 카드 */
+.witty-card {
+  width: 100%;
+  padding: 16px 18px;
+  margin-bottom: 20px;
+  border-radius: 18px;
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+.witty-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.witty-header h3 {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.witty-more {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fde68a;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.witty-more:hover {
+  background: rgba(245, 158, 11, 0.15);
+}
+
+.witty-lines {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.witty-lines li {
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: #f1f5f9;
+  padding: 9px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  opacity: 0;
+  animation: fadeInUp 0.45s ease-out forwards;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.witty-loading {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}

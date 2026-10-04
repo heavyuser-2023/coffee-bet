@@ -28,6 +28,15 @@ export const deleteAccount = mutation({
       await ctx.db.delete(group._id);
     }
 
+    // 1-1. 계정에 저장된 게임(당첨) 기록 삭제
+    const gameRecords = await ctx.db
+      .query("gameRecords")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .collect();
+    for (const record of gameRecords) {
+      await ctx.db.delete(record._id);
+    }
+
     // 2. 사용자의 auth 계정 및 관련 인증 코드 삭제
     const accounts = await ctx.db
       .query("authAccounts")

@@ -17,6 +17,9 @@ export interface TrajectoryFrame {
   positions: {
     [playerId: string]: Position2D;
   };
+  // [하단 스피너, 중간 스피너] 각도(rad). 슬로우모션 중 회전이 느려지므로 시간으로 역산하지 않고 기록한다
+  // (구버전 궤적에는 없음 → 재생 시 경과 시간으로 추정)
+  spin?: [number, number];
 }
 
 export interface ReplayData {

@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import type { Player, GameMode } from '../types';
 import './SetupScreen.css';
-import { Users, Plus, X, Shuffle, DollarSign, Play, DownloadCloud, Save, GripVertical, History } from 'lucide-react';
+import { Users, Plus, X, Shuffle, DollarSign, Play, DownloadCloud, Save, GripVertical, History, BarChart3 } from 'lucide-react';
 import { useQuery, useMutation, useConvexAuth } from 'convex/react';
 
 import { api } from '../../convex/_generated/api';
+import { computeOutcome } from '../game/outcome';
+import { StatsModal } from './StatsModal';
 
 interface Props {
   players: Player[];
@@ -44,6 +46,7 @@ export function SetupScreen({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [isReplayModalOpen, setIsReplayModalOpen] = useState(false);
+  const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
   const [saveTitle, setSaveTitle] = useState("");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -507,9 +510,14 @@ export function SetupScreen({
         </button>
       </div>
 
-      <button className="btn-secondary replay-list-btn" onClick={() => setIsReplayModalOpen(true)} style={{ width: '100%', marginBottom: '24px' }}>
-        <History size={20} className="icon-mr" /> 이전 리플레이 보기
-      </button>
+      <div className="history-btn-row">
+        <button className="btn-secondary replay-list-btn" onClick={() => setIsReplayModalOpen(true)}>
+          <History size={20} className="icon-mr" /> 리플레이 보기
+        </button>
+        <button className="btn-secondary replay-list-btn stats-open-btn" onClick={() => setIsStatsModalOpen(true)}>
+          <BarChart3 size={20} className="icon-mr" /> 당첨 통계
+        </button>
+      </div>
 
       <button className="btn-primary start-btn" onClick={handleStart}>
         <Play size={20} className="icon-mr" /> 레이스 시작
@@ -632,6 +640,10 @@ export function SetupScreen({
         </div>
       )}
 
+      {isStatsModalOpen && (
+        <StatsModal deviceId={deviceId} onClose={() => setIsStatsModalOpen(false)} />
+      )}
+
       {/* 리플레이 목록 모달 */}
       {isReplayModalOpen && (
         <div className="modal-overlay" onClick={() => setIsReplayModalOpen(false)}>
@@ -654,7 +666,11 @@ export function SetupScreen({
                     minute: '2-digit'
                   });
                   const modeText = replay.gameMode === 'all-in' ? '한 명 몰빵' : '랜덤 분배';
-                  const playerNames = replay.players.map((p: any) => p.name).join(', ');
+                  const playerNames = replay.players.map((p) => p.name).join(', ');
+                  const loserNames = computeOutcome(replay.players, replay.raceResults, replay.amountsPool)
+                    .filter((o) => o.isLoser)
+                    .map((o) => o.player.name)
+                    .join(', ');
                   
                   return (
                     <div 
@@ -671,6 +687,9 @@ export function SetupScreen({
                       <div className="replay-players">
                         {playerNames}
                       </div>
+                      {loserNames && (
+                        <div className="replay-loser">☕ {loserNames}</div>
+                      )}
                     </div>
                   );
                 })}

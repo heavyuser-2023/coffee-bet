@@ -1,12 +1,27 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import type { GameMode, Player, TrajectoryFrame } from '../types';
 import './ResultScreen.css';
-import { RotateCcw, Trophy, Save, Share2 } from 'lucide-react';
-import { useMutation, useConvexAuth } from 'convex/react';
+import { RotateCcw, Trophy, Save, Share2, ChevronRight } from 'lucide-react';
+import { useMutation, useQuery, useConvexAuth } from 'convex/react';
 
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { PLAYER_COLORS } from '../constants';
+import { computeOutcome } from '../game/outcome';
+import { buildWittyLines, type GameRecord } from '../game/stats';
+import { StatsModal } from './StatsModal';
+
+// 문자열 시드 고정 난수 — 같은 게임이면 통계 문구가 다시 그려져도 바뀌지 않게 한다
+function seededRandom(seedText: string) {
+  let h = 2166136261;
+  for (let i = 0; i < seedText.length; i++) h = Math.imul(h ^ seedText.charCodeAt(i), 16777619);
+  return () => {
+    h = Math.imul(h ^ (h >>> 15), 2246822507);
+    h = Math.imul(h ^ (h >>> 13), 3266489909);
+    h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  };
+}
 
 interface Props {
   players: Player[];
@@ -33,6 +48,9 @@ export function ResultScreen({
   const saveGroup = useMutation(api.participants.saveGroup);
   const saveReplayMutation = useMutation(api.replays.saveReplay);
   const generateUploadUrl = useMutation(api.replays.generateUploadUrl);
+  const recordGame = useMutation(api.gameRecords.recordGame);
+  const gameHistory = useQuery(api.gameRecords.listRecords, { deviceId });
+  const [isStatsOpen, setIsStatsOpen] = useState(false);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [groupTitle, setGroupTitle] = useState('');
@@ -119,6 +137,44 @@ export function ResultScreen({
     videoBlob
   ]);
 
+  // ------------------ 당첨 기록 & 오늘의 커피 통계 ------------------
+  // 이 결과 화면(=게임 1판)을 식별하는 ID와 시각. 서버 중복 저장 방지 및 통계 문구 고정에 사용
+  const [clientGameId] = useState(() => `${deviceId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+  const [finishedAt] = useState(() => Date.now());
+  const currentRecord = useMemo<GameRecord>(() => ({
+    clientGameId,
+    createdAt: finishedAt,
+    gameMode,
+    results: computeOutcome(players, raceResults, amountsPool).map((o) => ({
+      name: o.player.name,
+      rank: o.rank,
+      amount: o.amount,
+      isLoser: o.isLoser,
+    })),
+  }), [clientGameId, finishedAt, gameMode, players, raceResults, amountsPool]);
+
+  // 게임이 끝날 때마다 누가 걸렸는지 서버에 기록 (주간/월간 통계의 원천)
+  const hasRecordedGame = useRef(false);
+  useEffect(() => {
+    if (hasRecordedGame.current) return;
+    if (currentRecord.results.length < 2 || !currentRecord.results.some((r) => r.isLoser)) return;
+    hasRecordedGame.current = true;
+    recordGame({
+      deviceId,
+      clientGameId: currentRecord.clientGameId,
+      gameMode: currentRecord.gameMode,
+      results: currentRecord.results,
+    }).catch((e) => console.error("게임 기록 저장 중 오류:", e));
+  }, [recordGame, deviceId, currentRecord]);
+
+  // 이전 기록 + 이번 판으로 만든 한마디 (서버 저장 완료를 기다리지 않고 바로 계산)
+  const wittyLines = useMemo(
+    () => (gameHistory
+      ? buildWittyLines(gameHistory, currentRecord, { random: seededRandom(currentRecord.clientGameId) })
+      : null),
+    [gameHistory, currentRecord]
+  );
+
   const handleSaveGroup = () => {
     if (!isAuthenticated) {
       showToast("참가자를 저장하려면 상단의 로그인 버튼을 눌러주세요.");
@@ -203,24 +259,13 @@ export function ResultScreen({
     }
   };
 
-  // 매핑 결과 계산
+  // 매핑 결과 계산 (raceResults의 순서대로 amountsPool의 금액을 받음)
   const totalBill = amountsPool.reduce((a, b) => a + b, 0);
   const hasAmount = totalBill > 0;
-
-  // raceResults의 순서대로 amountsPool의 금액을 받음
-  const maxAmount = Math.max(...amountsPool, 0);
-  const finalResults = raceResults.map((id, index) => {
-    const player = players.find(p => p.id === id)!;
-    const amount = amountsPool[index] || 0;
-    const color = PLAYER_COLORS[players.findIndex(p => p.id === id) % PLAYER_COLORS.length];
-    const rank = index + 1;
-
-    // 금액이 지정된 경우: 가장 큰 금액을 부담하는 사람만 벌칙자로 강조 (랜덤 분배에서 전원이 강조되는 것을 방지)
-    // 금액이 지정되지 않은 경우: 레이스의 최하위(마지막 인덱스)를 벌칙자로 판정
-    const isLoser = hasAmount ? (amount > 0 && amount === maxAmount) : (index === raceResults.length - 1);
-
-    return { player, amount, rank, color, isLoser };
-  });
+  const finalResults = computeOutcome(players, raceResults, amountsPool).map((outcome) => ({
+    ...outcome,
+    color: PLAYER_COLORS[players.findIndex(p => p.id === outcome.player.id) % PLAYER_COLORS.length],
+  }));
 
   return (
     <div className="result-container">
@@ -274,6 +319,24 @@ export function ResultScreen({
         )}
       </div>
 
+      <div className="glass-panel witty-card fadeIn">
+        <div className="witty-header">
+          <h3>📊 오늘의 커피 통계</h3>
+          <button className="witty-more" onClick={() => setIsStatsOpen(true)}>
+            기록 보기 <ChevronRight size={14} />
+          </button>
+        </div>
+        {wittyLines ? (
+          <ul className="witty-lines">
+            {wittyLines.map((line, i) => (
+              <li key={line} style={{ animationDelay: `${0.5 + i * 0.35}s` }}>{line}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="witty-loading">통계를 계산하는 중...</p>
+        )}
+      </div>
+
       <div className="action-buttons">
         <button
           className="share-replay-btn"
@@ -301,6 +364,8 @@ export function ResultScreen({
           {toastMessage}
         </div>
       )}
+
+      {isStatsOpen && <StatsModal deviceId={deviceId} onClose={() => setIsStatsOpen(false)} />}
 
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => !isSaving && setIsModalOpen(false)}>

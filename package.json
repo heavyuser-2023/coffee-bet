@@ -12,6 +12,7 @@
     "cap:build": "npm run build:mobile && npx cap sync",
     "android:release": "npm run cap:build && cd android && JAVA_HOME=\"${JAVA_HOME_21:-/Applications/Android Studio.app/Contents/jbr/Contents/Home}\" ./gradlew bundleRelease",
     "lint": "eslint .",
+    "test": "node --disable-warning=ExperimentalWarning --test tests/*.test.ts",
     "preview": "vite preview",
     "predeploy": "npm run build",
     "deploy": "cp dist/index.html dist/404.html && gh-pages -d dist"
