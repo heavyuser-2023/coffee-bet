@@ -347,14 +347,11 @@ export function SetupScreen({
 
     let finalAmounts: number[] = [];
     if (gameMode === 'all-in') {
-      // 몰빵의 경우: 1명만 전체 금액을 내게 하거나 (게임상 꼴찌), 배열을 만들면
-      // 마지막 순위 배열 슬롯에 totalAmount를 넣음 (1등: 0, 2등: 0 ... 꼴등: totalAmount)
-      finalAmounts = players.map((_, i) => (i === players.length - 1 ? totalAmount : 0));
+      // 몰빵의 경우: 만 원 같은 고정 금액을 넣지 않고 0으로 전달하여 판수·승리/당첨 횟수로만 기록
+      finalAmounts = players.map(() => 0);
     } else {
       // 랜덤일 경우 그대로 전달 (내림차순 되어있음: 1등, 2등... 순위에 매핑할 수 있음)
       finalAmounts = randomAmountsPool;
-      // 재미를 위해 배열을 랜덤하게 섞어서 슬롯에 할당할수도 있음. 
-      // 이 앱에서는 내림차순으로 주고 레이스 도착 순서(혹은 슬롯)에 따라 결과 매핑
     }
     
     onStart(finalAmounts);
@@ -385,26 +382,26 @@ export function SetupScreen({
             </button>
           </div>
 
-          <div className="section-header" style={{ marginBottom: '12px' }}>
-            <h2>
-              <DollarSign className="icon" /> 
-              {gameMode === 'random' ? '총 금액 설정' : '결제 금액'}
-            </h2>
-          </div>
-          
           {gameMode === 'random' ? (
-            <div className="input-group">
-              <input
-                type="number"
-                inputMode="numeric"
-                value={totalAmount || ''}
-                onChange={(e) => setTotalAmount(Math.max(0, parseInt(e.target.value) || 0))}
-                placeholder="예: 15000"
-                min="0"
-                step="100"
-              />
-              <span className="currency">원</span>
-            </div>
+            <>
+              <div className="section-header" style={{ marginBottom: '12px' }}>
+                <h2>
+                  <DollarSign className="icon" /> 총 금액 설정
+                </h2>
+              </div>
+              <div className="input-group">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={totalAmount || ''}
+                  onChange={(e) => setTotalAmount(Math.max(0, parseInt(e.target.value) || 0))}
+                  placeholder="예: 15000"
+                  min="0"
+                  step="100"
+                />
+                <span className="currency">원</span>
+              </div>
+            </>
           ) : (
             <div className="all-in-amount-display" style={{ 
               padding: '16px', 
@@ -414,9 +411,9 @@ export function SetupScreen({
               border: '1px solid rgba(239, 68, 68, 0.2)',
               color: '#fca5a5',
               fontWeight: '700',
-              fontSize: '1.2rem'
+              fontSize: '1.1rem'
             }}>
-              꼴찌가 전액 결제! 😱
+              🏆 먼저 도착하면 승리! 마지막 1명이 당첨 ☕
             </div>
           )}
         </div>

@@ -75,8 +75,10 @@ export const inPeriod = (record: GameRecord, period: Period) =>
 export interface PersonStat {
   name: string;
   games: number; // 참여한 게임 수
+  wins: number; // 이긴(생존한) 횟수
   losses: number; // 걸린 횟수
-  paid: number; // 낸 금액 합계
+  paid: number; // 랜덤 분배에서 낸 금액 합계
+  winRate: number; // wins / games
   lossRate: number; // losses / games
 }
 
@@ -86,26 +88,40 @@ export interface Summary {
   people: PersonStat[]; // 많이 걸린 순
 }
 
+/** 몰빵(all-in) 모드는 만 원 같은 고정 금액 개념이 없으므로 랜덤 분배(random) 모드일 때만 금액을 합산한다. */
+const effectiveAmount = (record: GameRecord, r: RecordResult) =>
+  record.gameMode === 'random' ? r.amount : 0;
+
 export function summarize(records: GameRecord[]): Summary {
   const byName = new Map<string, PersonStat>();
   let totalPaid = 0;
   for (const record of records) {
     for (const r of record.results) {
       const name = normalizeName(r.name);
-      const stat = byName.get(name) ?? { name, games: 0, losses: 0, paid: 0, lossRate: 0 };
+      const stat = byName.get(name) ?? { name, games: 0, wins: 0, losses: 0, paid: 0, winRate: 0, lossRate: 0 };
+      const amt = effectiveAmount(record, r);
       stat.games++;
-      if (r.isLoser) stat.losses++;
-      stat.paid += r.amount;
-      totalPaid += r.amount;
+      if (r.isLoser) {
+        stat.losses++;
+      } else {
+        stat.wins++;
+      }
+      stat.paid += amt;
+      totalPaid += amt;
       byName.set(name, stat);
     }
   }
-  const people = [...byName.values()].map((s) => ({ ...s, lossRate: s.games > 0 ? s.losses / s.games : 0 }));
+  const people = [...byName.values()].map((s) => ({
+    ...s,
+    winRate: s.games > 0 ? s.wins / s.games : 0,
+    lossRate: s.games > 0 ? s.losses / s.games : 0,
+  }));
   people.sort(
     (a, b) =>
       b.losses - a.losses ||
       b.lossRate - a.lossRate ||
       b.paid - a.paid ||
+      b.wins - a.wins ||
       a.name.localeCompare(b.name, 'ko')
   );
   return { games: records.length, totalPaid, people };
@@ -131,7 +147,7 @@ export function personTimeline(records: GameRecord[], name: string): PersonGame[
         clientGameId: record.clientGameId,
         createdAt: record.createdAt,
         isLoser: r.isLoser,
-        amount: r.amount,
+        amount: effectiveAmount(record, r),
         rank: r.rank,
         playerCount: record.results.length,
       }];
@@ -291,6 +307,21 @@ export function buildWittyLines(history: GameRecord[], current: GameRecord, opti
       `🍀 ${lucky.name}님은 ${lucky.count}판 연속 생존 중. 비결 좀 공유해 주세요`,
       `🍀 ${lucky.name}님 ${lucky.count}연속 무사통과… 혹시 구슬에 뭐 바르셨어요?`,
     ]));
+  }
+
+  // 이번 판 승리(생존)자 중 최다 승리 기록 소개
+  let topWinner: { name: string; wins: number; games: number } | null = null;
+  for (const r of current.results) {
+    if (r.isLoser) continue;
+    const name = normalizeName(r.name);
+    const tl = personTimeline(all, name);
+    const wins = tl.filter((g) => !g.isLoser).length;
+    if (wins >= 2 && (!topWinner || wins > topWinner.wins)) {
+      topWinner = { name, wins, games: tl.length };
+    }
+  }
+  if (topWinner) {
+    add(30, 'wins', `🏆 ${topWinner.name}님 통산 ${topWinner.games}판 중 ${topWinner.wins}번 승리!`);
   }
 
   const isFirstGameOfWeek = weekRecords.length === 1;

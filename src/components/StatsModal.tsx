@@ -57,6 +57,7 @@ export function StatsModal({ deviceId, onClose }: Props) {
   const canGoPrev = kind !== 'all' && period.start > oldestAt;
   const canGoNext = kind !== 'all' && offset < 0;
   const maxLosses = Math.max(1, ...summary.people.map((p) => p.losses));
+  const maxWins = Math.max(0, ...summary.people.map((p) => p.wins));
 
   const changeKind = (next: PeriodKind) => {
     setKind(next);
@@ -131,18 +132,20 @@ export function StatsModal({ deviceId, onClose }: Props) {
             <>
               <div className="stats-summary">
                 <div>
-                  <span className="stats-summary-value">{summary.games}</span>
-                  <span className="stats-summary-label">게임</span>
+                  <span className="stats-summary-value">{summary.games}회</span>
+                  <span className="stats-summary-label">진행한 게임</span>
                 </div>
                 <div>
-                  <span className="stats-summary-value">{summary.people.length}</span>
+                  <span className="stats-summary-value">{summary.people.length}명</span>
                   <span className="stats-summary-label">참가자</span>
                 </div>
                 <div>
                   <span className="stats-summary-value">
-                    {summary.totalPaid > 0 ? `${summary.totalPaid.toLocaleString()}원` : '-'}
+                    {summary.totalPaid > 0 ? `${summary.totalPaid.toLocaleString()}원` : `${maxWins}승`}
                   </span>
-                  <span className="stats-summary-label">총 결제</span>
+                  <span className="stats-summary-label">
+                    {summary.totalPaid > 0 ? '분배 총액' : '최다 승리'}
+                  </span>
                 </div>
               </div>
 
@@ -166,7 +169,7 @@ export function StatsModal({ deviceId, onClose }: Props) {
                         <span className="stats-losses">{p.losses}회</span>
                       </button>
                       <div className="stats-person-sub">
-                        {p.games}판 중 {p.losses}번 당첨 · 당첨률 {Math.round(p.lossRate * 100)}%
+                        {p.games}번 중 {p.wins}번 승리 · {p.losses}번 당첨 (승률 {Math.round(p.winRate * 100)}%)
                         {p.paid > 0 && ` · ${p.paid.toLocaleString()}원`}
                       </div>
                       {isOpen && <PersonDetail name={p.name} records={all} />}
@@ -216,6 +219,7 @@ export function StatsModal({ deviceId, onClose }: Props) {
 function PersonDetail({ name, records }: { name: string; records: Parameters<typeof personTimeline>[0] }) {
   const timeline = useMemo(() => personTimeline(records, name), [records, name]);
   const losses = timeline.filter((g) => g.isLoser).length;
+  const wins = timeline.length - losses;
   const paid = timeline.reduce((sum, g) => sum + g.amount, 0);
   const streak = currentStreak(timeline);
   const recent = timeline.slice(-DOTS_LIMIT);
@@ -223,13 +227,13 @@ function PersonDetail({ name, records }: { name: string; records: Parameters<typ
   return (
     <div className="stats-detail fadeIn">
       <div className="stats-detail-line">
-        통산 <strong>{timeline.length}판 중 {losses}번</strong> 당첨
-        {timeline.length > 0 && ` (${Math.round((losses / timeline.length) * 100)}%)`}
+        통산 <strong>{timeline.length}번 중 {wins}번 승리 · {losses}번 당첨</strong>
+        {timeline.length > 0 && ` (승률 ${Math.round((wins / timeline.length) * 100)}%)`}
         {paid > 0 && ` · 누적 ${paid.toLocaleString()}원`}
       </div>
       {streak && streak.count >= 2 && (
         <div className="stats-detail-line">
-          {streak.kind === 'lose' ? `🔥 현재 ${streak.count}연속 당첨 중` : `🍀 현재 ${streak.count}판 연속 생존 중`}
+          {streak.kind === 'lose' ? `🔥 현재 ${streak.count}연속 당첨 중` : `🍀 현재 ${streak.count}번 연속 승리 중`}
         </div>
       )}
       <div className="stats-detail-dots" aria-label={`최근 ${recent.length}판 결과`}>
@@ -238,7 +242,7 @@ function PersonDetail({ name, records }: { name: string; records: Parameters<typ
           <span
             key={g.clientGameId}
             className={`stats-dot ${g.isLoser ? 'lose' : 'survive'}`}
-            title={`${formatGameTime(g.createdAt)} · ${g.isLoser ? '당첨' : '생존'}`}
+            title={`${formatGameTime(g.createdAt)} · ${g.isLoser ? '당첨' : '승리'}`}
           />
         ))}
       </div>

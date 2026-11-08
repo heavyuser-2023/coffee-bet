@@ -16,13 +16,19 @@ const at = (y: number, m: number, d: number, h = 12, min = 0) => new Date(y, m -
 
 let seq = 0;
 // loser: 이번 판에 걸린 사람, others: 살아남은 사람
-function game(createdAt: number, loser: string | string[], others: string[], amount = 0): GameRecord {
+function game(
+  createdAt: number,
+  loser: string | string[],
+  others: string[],
+  amount = 0,
+  gameMode: 'all-in' | 'random' = amount > 0 ? 'random' : 'all-in'
+): GameRecord {
   const losers = Array.isArray(loser) ? loser : [loser];
   const names = [...others, ...losers];
   return {
     clientGameId: `g${++seq}`,
     createdAt,
-    gameMode: 'all-in',
+    gameMode,
     results: names.map((name, i) => ({
       name,
       rank: i + 1,
@@ -168,6 +174,28 @@ test('한마디: 첫 판에는 \'이번 달 누적\' 금액 소식을 띄우지 
     { random: first, max: 10 }
   );
   assert.ok(second.some((l) => l.includes('누적 20,000원')), second.join(' / '));
+});
+
+test('몰빵(all-in) 모드는 만 원 기준 금액을 합산하지 않고 게임 횟수와 승리·당첨 횟수로만 집계한다', () => {
+  const records = [
+    game(at(2026, 10, 1), '김철수', ['이영희', '박민수'], 10000, 'all-in'),
+    game(at(2026, 10, 2), '김철수', ['이영희', '박민수'], 10000, 'all-in'),
+    game(at(2026, 10, 3), '이영희', ['김철수', '박민수'], 0, 'all-in'),
+  ];
+  const s = summarize(records);
+  assert.equal(s.games, 3);
+  assert.equal(s.totalPaid, 0);
+  assert.deepEqual(
+    s.people.map((p) => ({ name: p.name, games: p.games, wins: p.wins, losses: p.losses, paid: p.paid })),
+    [
+      { name: '김철수', games: 3, wins: 1, losses: 2, paid: 0 },
+      { name: '이영희', games: 3, wins: 2, losses: 1, paid: 0 },
+      { name: '박민수', games: 3, wins: 3, losses: 0, paid: 0 },
+    ]
+  );
+  const lines = buildWittyLines(records.slice(0, 2), records[2], { random: first, max: 10 });
+  assert.ok(!lines.some((l) => l.includes('원')), lines.join(' / '));
+  assert.ok(lines.some((l) => l.includes('박민수님 통산 3판 중 3번 승리!')), lines.join(' / '));
 });
 
 test('결과 계산: 몰빵은 꼴찌, 랜덤 분배는 최고 금액 부담자가 걸린 사람', () => {

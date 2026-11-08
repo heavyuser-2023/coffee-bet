@@ -61,10 +61,11 @@ export const recordGame = mutation({
     if (args.results.length < 2 || args.results.length > 20) {
       throw new Error("참가자 수가 올바르지 않습니다.");
     }
+    const isRandom = args.gameMode === "random";
     const results = args.results.map((r) => ({
       name: r.name.trim().replace(/\s+/g, " ").slice(0, MAX_NAME_LENGTH) || "이름 없음",
       rank: Math.max(1, Math.round(r.rank)),
-      amount: Number.isFinite(r.amount) ? Math.max(0, Math.round(r.amount)) : 0,
+      amount: isRandom && Number.isFinite(r.amount) ? Math.max(0, Math.round(r.amount)) : 0,
       isLoser: r.isLoser,
     }));
     if (!results.some((r) => r.isLoser)) {

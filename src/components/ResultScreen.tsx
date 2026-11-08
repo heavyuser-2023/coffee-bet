@@ -8,7 +8,7 @@ import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 import { PLAYER_COLORS } from '../constants';
 import { computeOutcome } from '../game/outcome';
-import { buildWittyLines, type GameRecord } from '../game/stats';
+import { buildWittyLines, normalizeName, summarize, type GameRecord } from '../game/stats';
 import { StatsModal } from './StatsModal';
 
 // 문자열 시드 고정 난수 — 같은 게임이면 통계 문구가 다시 그려져도 바뀌지 않게 한다
@@ -138,6 +138,12 @@ export function ResultScreen({
   ]);
 
   // ------------------ 당첨 기록 & 오늘의 커피 통계 ------------------
+  // 몰빵(all-in) 모드는 금액 개념 없이 판수·승패만 기록하므로 금액 풀을 0으로 정규화
+  const effectiveAmountsPool = useMemo(
+    () => (gameMode === 'random' ? amountsPool : amountsPool.map(() => 0)),
+    [gameMode, amountsPool]
+  );
+
   // 이 결과 화면(=게임 1판)을 식별하는 ID와 시각. 서버 중복 저장 방지 및 통계 문구 고정에 사용
   const [clientGameId] = useState(() => `${deviceId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
   const [finishedAt] = useState(() => Date.now());
@@ -145,13 +151,24 @@ export function ResultScreen({
     clientGameId,
     createdAt: finishedAt,
     gameMode,
-    results: computeOutcome(players, raceResults, amountsPool).map((o) => ({
+    results: computeOutcome(players, raceResults, effectiveAmountsPool).map((o) => ({
       name: o.player.name,
       rank: o.rank,
       amount: o.amount,
       isLoser: o.isLoser,
     })),
-  }), [clientGameId, finishedAt, gameMode, players, raceResults, amountsPool]);
+  }), [clientGameId, finishedAt, gameMode, players, raceResults, effectiveAmountsPool]);
+
+  // 이전 기록 + 이번 판을 합산한 참가자별 전적 (몇 판 했는지 / 몇 번 이겼는지 표시용)
+  const allRecordsWithCurrent = useMemo(() => {
+    const base = gameHistory ?? [];
+    return [...base.filter((r) => r.clientGameId !== currentRecord.clientGameId), currentRecord];
+  }, [gameHistory, currentRecord]);
+
+  const playerStatsMap = useMemo(() => {
+    const summary = summarize(allRecordsWithCurrent);
+    return new Map(summary.people.map((p) => [p.name, p]));
+  }, [allRecordsWithCurrent]);
 
   // 게임이 끝날 때마다 누가 걸렸는지 서버에 기록 (주간/월간 통계의 원천)
   const hasRecordedGame = useRef(false);
@@ -259,10 +276,10 @@ export function ResultScreen({
     }
   };
 
-  // 매핑 결과 계산 (raceResults의 순서대로 amountsPool의 금액을 받음)
-  const totalBill = amountsPool.reduce((a, b) => a + b, 0);
+  // 매핑 결과 계산 (raceResults의 순서대로 effectiveAmountsPool의 금액을 받음)
+  const totalBill = effectiveAmountsPool.reduce((a, b) => a + b, 0);
   const hasAmount = totalBill > 0;
-  const finalResults = computeOutcome(players, raceResults, amountsPool).map((outcome) => ({
+  const finalResults = computeOutcome(players, raceResults, effectiveAmountsPool).map((outcome) => ({
     ...outcome,
     color: PLAYER_COLORS[players.findIndex(p => p.id === outcome.player.id) % PLAYER_COLORS.length],
   }));
@@ -271,52 +288,66 @@ export function ResultScreen({
     <div className="result-container">
       <div className="header">
         <h1>🎉 최종 결과</h1>
-        <p>오늘의 커피 결제 내역입니다!</p>
+        <p>{gameMode === 'all-in' ? '오늘의 마블 레이스 결과입니다!' : '오늘의 커피 결제 내역입니다!'}</p>
       </div>
 
       <div className="glass-panel result-panel">
         <div className="result-list">
-          {finalResults.map((res, index) => (
-            <div 
-              key={res.player.id} 
-              className={`result-item fadeIn ${res.isLoser ? 'last-place' : ''}`}
-              style={{ animationDelay: `${index * 0.15}s` }}
-            >
-              <div className="rank">
-                {res.isLoser ? <Trophy className="icon-gold" size={24} /> : 
-                 <span className="rank-text">{res.rank}위</span>}
+          {finalResults.map((res, index) => {
+            const stat = playerStatsMap.get(normalizeName(res.player.name));
+            return (
+              <div 
+                key={res.player.id} 
+                className={`result-item fadeIn ${res.isLoser ? 'last-place' : ''}`}
+                style={{ animationDelay: `${index * 0.15}s` }}
+              >
+                <div className="rank">
+                  {res.isLoser ? <Trophy className="icon-gold" size={24} /> : 
+                   <span className="rank-text">{res.rank}위</span>}
+                </div>
+                <div className="player-info">
+                  <span className="dot" style={{ backgroundColor: res.color }}></span>
+                  <span className="name">{res.player.name}</span>
+                </div>
+                <div className="amount">
+                  {gameMode === 'all-in' ? (
+                    res.isLoser ? (
+                      <span className="amount-value text-danger">
+                        오늘 당첨! ☕{stat ? ` (${stat.games}전 ${stat.wins}승)` : ''}
+                      </span>
+                    ) : (
+                      <span className="amount-value text-success">
+                        {stat ? `${stat.wins}승째! 🎉 (${stat.games}전)` : '승리! 🎉'}
+                      </span>
+                    )
+                  ) : res.isLoser ? (
+                    <span className="amount-value text-danger">
+                      {hasAmount ? `${res.amount.toLocaleString()}원` : '오늘은 쏘는 날! 💸'}
+                    </span>
+                  ) : res.amount > 0 ? (
+                    <span className="amount-value text-warning">
+                      {res.amount.toLocaleString()}원
+                    </span>
+                  ) : (
+                    <span className="amount-value text-success">
+                      {hasAmount ? '공짜! 🥳' : '통과! 🎉'}
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="player-info">
-                <span className="dot" style={{ backgroundColor: res.color }}></span>
-                <span className="name">{res.player.name}</span>
-              </div>
-              <div className="amount">
-                {res.isLoser ? (
-                  <span className="amount-value text-danger">
-                    {gameMode === 'all-in'
-                      ? '오늘은 쏘는 날! 💸'
-                      : (hasAmount ? `${res.amount.toLocaleString()}원` : '오늘은 쏘는 날! 💸')
-                    }
-                  </span>
-                ) : res.amount > 0 ? (
-                  <span className="amount-value text-warning">
-                    {res.amount.toLocaleString()}원
-                  </span>
-                ) : (
-                  <span className="amount-value text-success">
-                    {hasAmount ? '공짜! 🥳' : '통과! 🎉'}
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         
-        {hasAmount && gameMode !== 'all-in' && (
+        {gameMode === 'all-in' ? (
+          <div className="summary">
+            총 <strong>{allRecordsWithCurrent.length}번</strong>의 게임 · 오늘의 커피는 <strong>{finalResults.filter(r => r.isLoser).map(r => r.player.name).join(', ')}</strong>님!
+          </div>
+        ) : hasAmount ? (
           <div className="summary">
             총 결제 금액: <strong>{totalBill.toLocaleString()}원</strong>
           </div>
-        )}
+        ) : null}
       </div>
 
       <div className="glass-panel witty-card fadeIn">
