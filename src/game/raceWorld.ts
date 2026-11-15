@@ -57,6 +57,40 @@ export const POP_BUMPER_POSITIONS: ReadonlyArray<{ x: number; y: number }> = [
   { x: TRACK_WIDTH - 110, y: 2720 },
 ];
 
+// ------------------ 초고속 부스터 패드 ------------------
+// 통과 즉시 아래 방향으로 폭발적인 가속을 부여하는 센서형 게이트
+export const BOOST_PAD_RADIUS = 18;
+const BOOST_COOLDOWN_STEPS = 30;
+export const BOOST_PAD_POSITIONS: ReadonlyArray<{ x: number; y: number }> = [
+  { x: 75, y: 560 },
+  { x: TRACK_WIDTH - 75, y: 560 },
+  { x: TRACK_WIDTH / 2, y: 1580 },
+  { x: 80, y: 2270 },
+  { x: TRACK_WIDTH - 80, y: 2270 },
+];
+
+// ------------------ 대역전 점프 스프링 ------------------
+// 닿으면 구슬을 위쪽 대각선 하늘로 강하게 쏘아 올려 순위를 뒤집는 스프링 패드
+export const JUMP_PAD_RADIUS = 16;
+const JUMP_COOLDOWN_STEPS = 90;
+const MAX_JUMPS_PER_MARBLE = 2;
+const JUMP_CLEARANCE = JUMP_PAD_RADIUS + 6 + 22 + 6;
+export const JUMP_PAD_POSITIONS: ReadonlyArray<{ x: number; y: number }> = [
+  { x: 115, y: 1020 },
+  { x: TRACK_WIDTH - 115, y: 1020 },
+  { x: TRACK_WIDTH / 2, y: 2000 },
+  { x: 125, y: 2920 },
+  { x: TRACK_WIDTH - 125, y: 2920 },
+];
+
+// ------------------ 왕복 게이트키퍼 범퍼 ------------------
+// 최종 깔때기 진입 직전에서 좌우로 왕복하며 구슬을 튕겨내는 수호자 범퍼
+export const GATEKEEPER_Y = 2840;
+export const GATEKEEPER_RADIUS = 13;
+export const GATEKEEPER_AMPLITUDE = 65;
+const GATEKEEPER_RATE = 0.045;
+const GATEKEEPER_KICK = 6.5;
+
 const MARBLE_RADIUS = 11;
 // matter-js 기준 스텝 길이(Body._baseDelta). 속도는 이 시간당 이동량(px)으로 정규화된다
 const BASE_DELTA = 1000 / 60;
@@ -76,6 +110,11 @@ export interface RaceWorldOptions {
 export interface StepResult {
   newlyFinished: string[]; // 이번 스텝에 결승선을 통과한 참가자 ID
   bumperHits: number[]; // 이번 스텝에 구슬을 튕겨낸 팝 범퍼 인덱스
+  boostHits: { index: number; playerId: string }[]; // 이번 스텝에 부스터 패드를 통과한 정보
+  jumpHits: { index: number; playerId: string }[]; // 이번 스텝에 점프 패드를 발동한 정보
+  gatekeeperHitPlayerIds: string[]; // 이번 스텝에 왕복 게이트키퍼에 튕긴 참가자 ID
+  leadChangedTo: string | null; // 이번 스텝에 역전하여 새 1위가 된 참가자 ID (역전 없으면 null)
+  pinHits: number; // 이번 스텝에 일반 핀/벽에 부딪힌 횟수 (효과음 트리거용)
 }
 
 // 레이스 진행 계측값 (헤드리스 시뮬레이션 테스트에서 동작 검증용)
@@ -86,6 +125,8 @@ export interface RaceMetrics {
   stuckRescuesInSlowMo: number; // 그중 슬로우모션 중 발동 횟수
   bumperKicks: number; // 팝 범퍼가 구슬을 튕겨낸 횟수
   leaderChanges: number; // 선두 교체(역전) 횟수
+  boostActivations: number; // 부스터 패드 발동 횟수
+  jumpActivations: number; // 점프 패드 발동 횟수
 }
 
 export interface RaceWorld {
@@ -95,6 +136,9 @@ export interface RaceWorld {
   spinner: Matter.Body;
   midSpinner: Matter.Body;
   popBumpers: Matter.Body[];
+  boostPads: Matter.Body[];
+  jumpPads: Matter.Body[];
+  gatekeeper: Matter.Body;
   finished: string[];
   stepLive: () => StepResult;
   // 결승 전 구슬 중 가장 아래(선두)에 있는 구슬의 y좌표 (없으면 null)
@@ -109,6 +153,9 @@ interface MarbleState {
   lastX?: number;
   lastY?: number;
   stuckSteps: number;
+  boostCooldownSteps: number;
+  jumpCooldownSteps: number;
+  jumpCount: number;
 }
 
 export function createRaceWorld({
@@ -185,9 +232,12 @@ export function createRaceWorld({
     midSpinner,
   ]);
 
-  // Pegs (핀) — 팝 범퍼 주변은 비워 통로 확보
-  const nearPopBumper = (x: number, y: number) =>
-    POP_BUMPER_POSITIONS.some((b) => Math.hypot(b.x - x, b.y - y) < POP_BUMPER_CLEARANCE);
+  // Pegs (핀) — 팝 범퍼, 점프 패드, 부스터 패드, 왕복 게이트키퍼 주변은 비워 통로 확보
+  const nearGimmick = (x: number, y: number) =>
+    POP_BUMPER_POSITIONS.some((b) => Math.hypot(b.x - x, b.y - y) < POP_BUMPER_CLEARANCE) ||
+    JUMP_PAD_POSITIONS.some((j) => Math.hypot(j.x - x, j.y - y) < JUMP_CLEARANCE) ||
+    BOOST_PAD_POSITIONS.some((b) => Math.hypot(b.x - x, b.y - y) < BOOST_PAD_RADIUS + 14) ||
+    (Math.abs(y - GATEKEEPER_Y) <= 30 && Math.abs(x - width / 2) <= GATEKEEPER_AMPLITUDE + GATEKEEPER_RADIUS + 20);
   const pegs: Matter.Body[] = [];
   const spacingX = width / 6;
   const sideMargin = 55;
@@ -198,7 +248,7 @@ export function createRaceWorld({
       const startX = isEven ? spacingX : spacingX / 2;
       for (let col = 0; col < cols; col++) {
         const x = startX + col * spacingX;
-        if (x > sideMargin && x < width - sideMargin && !nearPopBumper(x, y)) {
+        if (x > sideMargin && x < width - sideMargin && !nearGimmick(x, y)) {
           pegs.push(Bodies.circle(x, y, 6, { isStatic: true, restitution, render: { fillStyle } }));
         }
       }
@@ -232,7 +282,36 @@ export function createRaceWorld({
     })
   );
 
-  Composite.add(engine.world, [...pegs, ...wallBumpers, ...popBumpers]);
+  // 초고속 부스터 패드 (센서)
+  const boostPads = BOOST_PAD_POSITIONS.map((p, i) =>
+    Bodies.circle(p.x, p.y, BOOST_PAD_RADIUS, {
+      isStatic: true,
+      isSensor: true,
+      label: `BoostPad_${i}`,
+      render: { visible: false },
+    })
+  );
+
+  // 대역전 점프 스프링 (센서)
+  const jumpPads = JUMP_PAD_POSITIONS.map((p, i) =>
+    Bodies.circle(p.x, p.y, JUMP_PAD_RADIUS, {
+      isStatic: true,
+      isSensor: true,
+      label: `JumpPad_${i}`,
+      render: { visible: false },
+    })
+  );
+
+  // 왕복 게이트키퍼 범퍼
+  const gatekeeper = Bodies.circle(width / 2, GATEKEEPER_Y, GATEKEEPER_RADIUS, {
+    isStatic: true,
+    restitution: 1,
+    friction: 0,
+    label: 'Gatekeeper',
+    render: { fillStyle: '#312e81', strokeStyle: '#facc15', lineWidth: 3 },
+  });
+
+  Composite.add(engine.world, [...pegs, ...wallBumpers, ...popBumpers, ...boostPads, ...jumpPads, gatekeeper]);
 
   // Final Funnel
   const finalFunnelLeft = Bodies.rectangle(
@@ -320,15 +399,32 @@ export function createRaceWorld({
 
   // ------------------ 스텝 상태 ------------------
   const finished: string[] = [];
-  const marbleState = new Map<Matter.Body, MarbleState>(marbles.map((m) => [m, { stuckSteps: 0 }]));
+  const marbleState = new Map<Matter.Body, MarbleState>(
+    marbles.map((m) => [m, { stuckSteps: 0, boostCooldownSteps: 0, jumpCooldownSteps: 0, jumpCount: 0 }])
+  );
   let newlyFinished: string[] = [];
   let bumperHits: number[] = [];
+  let boostHits: { index: number; playerId: string }[] = [];
+  let jumpHits: { index: number; playerId: string }[] = [];
+  let gatekeeperHitPlayerIds: string[] = [];
+  let pinHits = 0;
   let pendingKicks: { bumper: Matter.Body; marble: Matter.Body }[] = [];
+  let pendingBoosts: { index: number; marble: Matter.Body }[] = [];
+  let pendingJumps: { index: number; marble: Matter.Body }[] = [];
+  let pendingGatekeeperHits: Matter.Body[] = [];
+  let gatekeeperPhase = 0;
   let leaderLabel: string | null = null;
   let slowMoHoldMs = 0;
   let slowMoTarget = 1;
   const metrics: RaceMetrics = {
-    steps: 0, slowMoSteps: 0, stuckRescues: 0, stuckRescuesInSlowMo: 0, bumperKicks: 0, leaderChanges: 0,
+    steps: 0,
+    slowMoSteps: 0,
+    stuckRescues: 0,
+    stuckRescuesInSlowMo: 0,
+    bumperKicks: 0,
+    leaderChanges: 0,
+    boostActivations: 0,
+    jumpActivations: 0,
   };
 
   const activeMarbles = () => marbles.filter((m) => !finished.includes(playerIdOf(m)));
@@ -349,6 +445,25 @@ export function createRaceWorld({
       } else if (other.label.startsWith('PopBumper_')) {
         // 충돌 해석(반발) 이후에 속도를 덮어써야 킥이 그대로 적용되므로 afterUpdate에서 처리
         pendingKicks.push({ bumper: other, marble });
+      } else if (other.label.startsWith('BoostPad_')) {
+        const state = marbleState.get(marble);
+        if (state && state.boostCooldownSteps <= 0) {
+          const index = Number(other.label.slice('BoostPad_'.length));
+          pendingBoosts.push({ index, marble });
+          state.boostCooldownSteps = BOOST_COOLDOWN_STEPS;
+        }
+      } else if (other.label.startsWith('JumpPad_')) {
+        const state = marbleState.get(marble);
+        if (state && state.jumpCooldownSteps <= 0 && state.jumpCount < MAX_JUMPS_PER_MARBLE) {
+          const index = Number(other.label.slice('JumpPad_'.length));
+          pendingJumps.push({ index, marble });
+          state.jumpCooldownSteps = JUMP_COOLDOWN_STEPS;
+          state.jumpCount++;
+        }
+      } else if (other.label === 'Gatekeeper') {
+        pendingGatekeeperHits.push(marble);
+      } else if (other.isStatic && !other.isSensor && Body.getSpeed(marble) > 1.5) {
+        pinHits++;
       }
     }
   };
@@ -366,6 +481,32 @@ export function createRaceWorld({
       if (!bumperHits.includes(index)) bumperHits.push(index);
     }
     pendingKicks = [];
+
+    for (const { index, marble } of pendingBoosts) {
+      const v = Body.getVelocity(marble);
+      Body.setVelocity(marble, { x: v.x * 1.15, y: Math.max(v.y + 4.5, 11.5) });
+      metrics.boostActivations++;
+      boostHits.push({ index, playerId: playerIdOf(marble) });
+    }
+    pendingBoosts = [];
+
+    for (const { index, marble } of pendingJumps) {
+      Body.setVelocity(marble, { x: (random() - 0.5) * 7, y: -10.5 });
+      metrics.jumpActivations++;
+      jumpHits.push({ index, playerId: playerIdOf(marble) });
+    }
+    pendingJumps = [];
+
+    for (const marble of pendingGatekeeperHits) {
+      const dx = marble.position.x - gatekeeper.position.x;
+      const dy = marble.position.y - gatekeeper.position.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const speed = Math.max(GATEKEEPER_KICK, Body.getSpeed(marble));
+      Body.setVelocity(marble, { x: (dx / dist) * speed, y: (dy / dist) * speed });
+      const playerId = playerIdOf(marble);
+      if (!gatekeeperHitPlayerIds.includes(playerId)) gatekeeperHitPlayerIds.push(playerId);
+    }
+    pendingGatekeeperHits = [];
   };
 
   if (!isReplay) {
@@ -427,15 +568,33 @@ export function createRaceWorld({
   const stepLive = (): StepResult => {
     newlyFinished = [];
     bumperHits = [];
+    boostHits = [];
+    jumpHits = [];
+    gatekeeperHitPlayerIds = [];
+    pinHits = 0;
 
     if (slowMotion) updateSlowMo();
     const scale = engine.timing.timeScale;
     metrics.steps++;
     if (scale < 1) metrics.slowMoSteps++;
 
-    // 스피너도 물리 시간에 맞춰 회전 (슬로우모션 중 스피너만 원속도로 돌며 구슬을 세게 치는 문제 방지)
+    for (const state of marbleState.values()) {
+      if (state.boostCooldownSteps > 0) {
+        state.boostCooldownSteps = Math.max(0, state.boostCooldownSteps - scale);
+      }
+      if (state.jumpCooldownSteps > 0) {
+        state.jumpCooldownSteps = Math.max(0, state.jumpCooldownSteps - scale);
+      }
+    }
+
+    // 스피너 및 왕복 게이트키퍼도 물리 시간에 맞춰 이동/회전
     Body.setAngle(spinner, spinner.angle + SPINNER_RATE * scale);
     Body.setAngle(midSpinner, midSpinner.angle + MID_SPINNER_RATE * scale);
+    gatekeeperPhase += GATEKEEPER_RATE * scale;
+    Body.setPosition(gatekeeper, {
+      x: width / 2 + Math.sin(gatekeeperPhase) * GATEKEEPER_AMPLITUDE,
+      y: GATEKEEPER_Y,
+    });
 
     rescueStuckMarbles(activeMarbles());
 
@@ -443,14 +602,18 @@ export function createRaceWorld({
 
     // 역전(선두 교체) 감지 → 슬로우모션
     const leader = findLeader(activeMarbles());
-    if (leader.label && leaderLabel && leader.label !== leaderLabel) metrics.leaderChanges++;
-    if (slowMotion && leader.label && leaderLabel && leader.label !== leaderLabel) {
+    let leadChangedTo: string | null = null;
+    if (leader.label && leaderLabel && leader.label !== leaderLabel) {
+      metrics.leaderChanges++;
+      leadChangedTo = leader.label.slice('player_'.length);
+    }
+    if (slowMotion && leadChangedTo) {
       slowMoTarget = SLOWMO_SCALE;
       slowMoHoldMs = SLOWMO_HOLD_MS;
     }
     leaderLabel = leader.label;
 
-    return { newlyFinished, bumperHits };
+    return { newlyFinished, bumperHits, boostHits, jumpHits, gatekeeperHitPlayerIds, leadChangedTo, pinHits };
   };
 
   return {
@@ -460,6 +623,9 @@ export function createRaceWorld({
     spinner,
     midSpinner,
     popBumpers,
+    boostPads,
+    jumpPads,
+    gatekeeper,
     finished,
     stepLive,
     leaderY: () => findLeader(activeMarbles()).y,

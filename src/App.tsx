@@ -288,6 +288,7 @@ function App() {
         <RaceScreen 
           players={players}
           amountsPool={amountsPool}
+          gameMode={gameMode}
           onFinish={handleRaceFinish}
         />
       )}
@@ -320,6 +321,7 @@ function App() {
           <RaceScreen
             players={replayData.players}
             amountsPool={replayData.amountsPool}
+            gameMode={replayData.gameMode === 'random' ? 'random' : 'all-in'}
             onFinish={() => {}}
             isReplay={true}
             replayTrajectory={JSON.parse(replayData.trajectory)}

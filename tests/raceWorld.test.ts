@@ -4,8 +4,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import Matter from 'matter-js';
 import {
+  BOOST_PAD_POSITIONS,
   createRaceWorld,
   FIXED_STEP_MS,
+  GATEKEEPER_AMPLITUDE,
+  GATEKEEPER_Y,
+  JUMP_PAD_POSITIONS,
   POP_BUMPER_POSITIONS,
   TRACK_WIDTH,
   WORLD_HEIGHT,
@@ -177,5 +181,78 @@ test('역전 시 슬로우모션이 부드럽게 진입했다가 원래 배속�
   for (let i = 1; i < scales.length; i++) maxJump = Math.max(maxJump, Math.abs(scales[i] - scales[i - 1]));
   assert.ok(maxJump <= 0.21, `한 스텝 배속 변화 최대 ${maxJump.toFixed(3)}`);
   assert.ok(scales.some((s, i) => i > 0 && scales[i - 1] < 1 && s === 1), '슬로우모션 후 원래 배속(1)으로 복귀해야 함');
+  world.dispose();
+});
+
+test('부스터 패드를 통과한 구슬이 아래 방향으로 강하게 가속된다', () => {
+  const pad = BOOST_PAD_POSITIONS[0];
+  const world = createRaceWorld({
+    playerIds: ['racer'],
+    colors: ['#fff'],
+    random: seeded(11),
+    slowMotion: false,
+    startPositions: { racer: { x: pad.x, y: pad.y - 40 } },
+  });
+  const marble = world.marbles[0];
+  let hit = false;
+  for (let i = 0; i < 200 && !hit; i++) {
+    hit = world.stepLive().boostHits.length > 0;
+  }
+  assert.ok(hit, '부스터 패드에 닿지 않음');
+  assert.ok(world.metrics.boostActivations >= 1, '부스터 발동 계측값이 증가해야 함');
+  const v = Matter.Body.getVelocity(marble);
+  assert.ok(v.y >= 11, `부스터 발동 후 하향 속도 vy=${v.y.toFixed(2)} (기대 ≥ 11)`);
+  world.dispose();
+});
+
+test('점프 패드에 닿은 구슬이 위쪽으로 강하게 튀어오른다', () => {
+  const pad = JUMP_PAD_POSITIONS[0];
+  const world = createRaceWorld({
+    playerIds: ['jumper'],
+    colors: ['#fff'],
+    random: seeded(12),
+    slowMotion: false,
+    startPositions: { jumper: { x: pad.x, y: pad.y - 40 } },
+  });
+  const marble = world.marbles[0];
+  let hit = false;
+  for (let i = 0; i < 200 && !hit; i++) {
+    hit = world.stepLive().jumpHits.length > 0;
+  }
+  assert.ok(hit, '점프 패드에 닿지 않음');
+  assert.ok(world.metrics.jumpActivations >= 1, '점프 패드 발동 계측값이 증가해야 함');
+  const v = Matter.Body.getVelocity(marble);
+  assert.ok(v.y <= -10, `점프 패드 발동 후 상향 속도 vy=${v.y.toFixed(2)} (기대 ≤ -10)`);
+  world.dispose();
+});
+
+test('왕복 게이트키퍼가 좌우로 이동하며 충돌한 구슬을 튕겨낸다', () => {
+  const world = createRaceWorld({
+    playerIds: ['challenger'],
+    colors: ['#fff'],
+    random: seeded(13),
+    slowMotion: false,
+    startPositions: { challenger: { x: TRACK_WIDTH / 2 + 10, y: GATEKEEPER_Y - 26 } },
+  });
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let hitGatekeeper = false;
+  let speedAfterHit = 0;
+  for (let i = 0; i < 160; i++) {
+    const res = world.stepLive();
+    minX = Math.min(minX, world.gatekeeper.position.x);
+    maxX = Math.max(maxX, world.gatekeeper.position.x);
+    if (res.gatekeeperHitPlayerIds.includes('challenger')) {
+      hitGatekeeper = true;
+      const v = Matter.Body.getVelocity(world.marbles[0]);
+      speedAfterHit = Math.hypot(v.x, v.y);
+    }
+  }
+  assert.ok(
+    maxX - minX >= GATEKEEPER_AMPLITUDE * 1.5,
+    `게이트키퍼 좌우 이동 폭 ${(maxX - minX).toFixed(1)} (기대 ≥ ${(GATEKEEPER_AMPLITUDE * 1.5).toFixed(1)})`
+  );
+  assert.ok(hitGatekeeper, '왕복 게이트키퍼와의 충돌이 감지되어야 함');
+  assert.ok(speedAfterHit >= 6, `게이트키퍼 충돌 직후 속도 ${speedAfterHit.toFixed(2)} (기대 ≥ 6)`);
   world.dispose();
 });
