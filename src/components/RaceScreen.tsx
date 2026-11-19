@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import Matter from 'matter-js';
 import type { GameMode, Player, TrajectoryFrame } from '../types';
 import './RaceScreen.css';
-import { Play, Pause, LogOut, Volume2, VolumeX } from 'lucide-react';
+import { Play, Pause, LogOut, Volume2, VolumeX, ArrowLeft } from 'lucide-react';
 import { PLAYER_COLORS } from '../constants';
+import { ConfirmDialog } from './ui/ConfirmDialog';
 import {
   createRaceWorld,
   playerIdOf,
@@ -28,6 +29,7 @@ interface Props {
   amountsPool: number[];
   gameMode?: GameMode;
   onFinish: (results: string[], trajectory?: TrajectoryFrame[], videoBlob?: Blob) => void;
+  onExitRace?: () => void;
   isReplay?: boolean;
   replayTrajectory?: TrajectoryFrame[];
   raceResults?: string[]; // 리플레이 시 순위 보장을 위해 필요
@@ -475,7 +477,6 @@ function drawCanvasHud(
   now: number,
   isSlowMo: boolean,
   isClimax: boolean,
-  commentary: CommentaryItem | null,
   width: number,
   height: number
 ) {
@@ -491,60 +492,154 @@ function drawCanvasHud(
     ctx.strokeRect(3, 3, width - 6, height - 6);
   }
 
-  let nextTopY = 12;
-
-  // 역전 슬로우모션 배지
+  // 역전 슬로우모션 배지 — 상단 DOM HUD(.canvas-hud-overlay)와 겹치지 않도록 캔버스 하단 중앙에 배치
   if (isSlowMo) {
     const badgeText = '⚡ SLOW MOTION · 역전 순간!';
     ctx.font = '800 11px -apple-system, BlinkMacSystemFont, sans-serif';
     const bw = ctx.measureText(badgeText).width + 20;
     const bx = (width - bw) / 2;
-    drawRoundedRectPath(ctx, bx, nextTopY, bw, 22, 11);
+    const badgeY = height - 36;
+    drawRoundedRectPath(ctx, bx, badgeY, bw, 22, 11);
     ctx.fillStyle = 'rgba(245, 158, 11, 0.92)';
     ctx.fill();
     ctx.fillStyle = '#0f172a';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(badgeText, width / 2, nextTopY + 11.5);
-    nextTopY += 28;
-  }
-
-  // 실시간 중계 자막 HUD
-  if (commentary && now < commentary.expiresAt) {
-    const toneColors: Record<CommentaryTone, string> = {
-      overtake: '#f59e0b',
-      boost: '#06b6d4',
-      jump: '#f43f5e',
-      bumper: '#a855f7',
-      finish: '#10b981',
-      climax: '#ef4444',
-    };
-    const accent = toneColors[commentary.tone];
-    ctx.font = '700 11px -apple-system, BlinkMacSystemFont, sans-serif';
-    const textW = ctx.measureText(commentary.text).width;
-    const pillW = Math.min(width - 24, textW + 24);
-    const pillX = (width - pillW) / 2;
-
-    drawRoundedRectPath(ctx, pillX, nextTopY, pillW, 24, 12);
-    ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
-    ctx.fill();
-    ctx.strokeStyle = accent;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    ctx.fillStyle = '#f8fafc';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(commentary.text, width / 2, nextTopY + 12.5, pillW - 14);
+    ctx.fillText(badgeText, width / 2, badgeY + 11.5);
   }
 
   ctx.restore();
+}
+
+export function RaceParticipantsStrip({
+  players,
+  finishedPlayers = DEFAULT_RESULTS,
+  ariaLabel = '참가자 현황',
+}: {
+  players: Player[];
+  finishedPlayers?: string[];
+  ariaLabel?: string;
+}) {
+  return (
+    <div className="race-participants-strip" aria-label={ariaLabel}>
+      {players.map((p, i) => {
+        const finishIndex = finishedPlayers.indexOf(p.id);
+        const isFinished = finishIndex !== -1;
+        const color = PLAYER_COLORS[i % PLAYER_COLORS.length];
+        return (
+          <div
+            key={p.id}
+            className={`race-participant-chip ${isFinished ? 'is-finished' : 'is-running'}`}
+            style={
+              isFinished
+                ? { borderColor: color, boxShadow: `0 0 12px ${color}33` }
+                : undefined
+            }
+          >
+            {isFinished && (
+              <span className="participant-rank-badge tabular-nums">
+                {finishIndex + 1}위
+              </span>
+            )}
+            <span
+              className="participant-dot"
+              style={{ backgroundColor: color }}
+              aria-hidden="true"
+            />
+            <span className="participant-name">{p.name}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function ReplayControlsBar({
+  currentTimeSec,
+  totalDurationSec,
+  sliderMax,
+  sliderValue,
+  sliderStep,
+  isPlaying,
+  playbackRate,
+  onSeek,
+  onTogglePlayback,
+  onChangeRate,
+  onExitReplay,
+}: {
+  currentTimeSec: number;
+  totalDurationSec: number;
+  sliderMax: number;
+  sliderValue: number;
+  sliderStep?: number;
+  isPlaying: boolean;
+  playbackRate: 1 | 2 | 4;
+  onSeek: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onTogglePlayback: () => void;
+  onChangeRate: (rate: 1 | 2 | 4) => void;
+  onExitReplay?: () => void;
+}) {
+  return (
+    <div className="replay-controls">
+      <div className="replay-timeline">
+        <input
+          type="range"
+          min={0}
+          max={sliderMax}
+          step={sliderStep}
+          value={sliderValue}
+          onChange={onSeek}
+          className="replay-slider"
+          aria-label="리플레이 타임라인 탐색"
+        />
+        <span className="replay-time-text tabular-nums">
+          {currentTimeSec.toFixed(1)}s / {totalDurationSec.toFixed(1)}s
+        </span>
+      </div>
+
+      <div className="replay-buttons">
+        <div className="replay-btn-group">
+          <button
+            type="button"
+            onClick={onTogglePlayback}
+            className={`replay-play-btn ${isPlaying ? 'active' : ''}`}
+            aria-label={isPlaying ? '일시정지' : '재생'}
+            title={isPlaying ? '일시정지' : '재생'}
+          >
+            {isPlaying ? <Pause size={18} aria-hidden="true" /> : <Play size={18} aria-hidden="true" />}
+          </button>
+
+          <div className="playback-rate-selector" role="group" aria-label="재생 배속">
+            {([1, 2, 4] as const).map((rate) => (
+              <button
+                key={rate}
+                type="button"
+                onClick={() => onChangeRate(rate)}
+                className={`rate-btn tabular-nums ${playbackRate === rate ? 'active' : ''}`}
+                aria-pressed={playbackRate === rate}
+              >
+                {rate}x
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {onExitReplay && (
+          <button type="button" onClick={onExitReplay} className="btn-exit-replay">
+            <LogOut size={15} aria-hidden="true" />
+            <span>나가기</span>
+          </button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function RaceScreen({
   players,
   gameMode = 'all-in',
   onFinish,
+  onExitRace,
   isReplay = false,
   replayTrajectory = DEFAULT_TRAJECTORY,
   raceResults = DEFAULT_RESULTS,
@@ -555,6 +650,18 @@ export function RaceScreen({
   const renderRef = useRef<Matter.Render | null>(null);
   const [finishedPlayers, setFinishedPlayers] = useState<string[]>([]);
   const finishedRef = useRef<string[]>([]);
+  const [exitConfirmOpen, setExitConfirmOpen] = useState(false);
+
+  const onFinishRef = useRef(onFinish);
+  const raceResultsRef = useRef(raceResults);
+
+  useEffect(() => {
+    onFinishRef.current = onFinish;
+  }, [onFinish]);
+
+  useEffect(() => {
+    raceResultsRef.current = raceResults;
+  }, [raceResults]);
 
   const loopTimeoutIdRef = useRef<number | null>(null);
   const finishTimeoutRef = useRef<number | null>(null);
@@ -873,13 +980,12 @@ export function RaceScreen({
 
       ctx.restore();
 
-      // 7) 화면 고정 HUD (단두대 매치 비네트 테두리, 슬로우모션 배지, 중계 자막)
+      // 7) 화면 고정 HUD (단두대 매치 비네트 테두리, 하단 슬로우모션 배지 — 중계 자막은 DOM .canvas-hud-overlay로 일원화)
       drawCanvasHud(
         ctx,
         now,
         !isReplay && world.timeScale() < 0.75,
         climaxRef.current.active,
-        commentaryRef.current,
         width,
         viewHeight
       );
@@ -950,25 +1056,28 @@ export function RaceScreen({
               ? new Blob(chunks, { type: recorder.mimeType || 'video/webm' })
               : undefined;
           captureStreamRef.current?.getTracks().forEach((t) => t.stop());
-          onFinish(finishedRef.current, trajectoryRef.current, blob);
+          onFinishRef.current(finishedRef.current, trajectoryRef.current, blob);
         };
         try {
           recorder.stop();
         } catch {
           captureStreamRef.current?.getTracks().forEach((t) => t.stop());
-          onFinish(finishedRef.current, trajectoryRef.current);
+          onFinishRef.current(finishedRef.current, trajectoryRef.current);
         }
       } else {
-        onFinish(finishedRef.current, trajectoryRef.current);
+        onFinishRef.current(finishedRef.current, trajectoryRef.current);
       }
     };
+
+    const replayDuration =
+      replayTrajectory.length > 0 ? replayTrajectory[replayTrajectory.length - 1].t : 0;
 
     // ------------------ 리플레이(궤적) 재생 1스텝 ------------------
     const stepReplay = () => {
       if (isPlayingRef.current) {
         // 캡처와 동일한 실시간 축(스텝당 16.66ms)으로 진행 → 캡처/재생 시간축 완전 정합
         const delta = FIXED_STEP_MS * playbackRateRef.current;
-        replayTimeRef.current = Math.min(totalDuration, replayTimeRef.current + delta);
+        replayTimeRef.current = Math.min(replayDuration, replayTimeRef.current + delta);
         setReplayTimeState(replayTimeRef.current);
       }
 
@@ -1017,13 +1126,14 @@ export function RaceScreen({
       }
 
       // 실시간 순위 정보 계산 (센서Y를 지나갔는지 검사)
+      const currentResults = raceResultsRef.current;
       const passedIds = players
         .map((p) => {
           const pos = f1.positions[p.id];
           return { id: p.id, y: pos ? pos.y : 0 };
         })
         .filter((item) => item.y >= SENSOR_Y)
-        .sort((a, b) => raceResults.indexOf(a.id) - raceResults.indexOf(b.id))
+        .sort((a, b) => currentResults.indexOf(a.id) - currentResults.indexOf(b.id))
         .map((item) => item.id);
 
       // 내용이 실제로 바뀐 경우에만 setState (매 틱 새 배열로 인한 불필요한 리렌더 방지)
@@ -1036,7 +1146,7 @@ export function RaceScreen({
       updateClimaxState(finishedRef.current, activeMaxY);
 
       // 끝에 도달했을 때 일시정지
-      if (t >= totalDuration && isPlayingRef.current) {
+      if (t >= replayDuration && isPlayingRef.current) {
         setIsPlaying(false);
         isPlayingRef.current = false;
       }
@@ -1310,111 +1420,103 @@ export function RaceScreen({
 
   return (
     <div className="race-container" onPointerDown={() => soundRef.current?.unlock()}>
-      <div className="race-header">
-        <div className="race-title-row">
-          <h2>{isReplay ? '📺 리플레이 재생' : '🔥 마블 레이스 🔥'}</h2>
-          {!isReplay && (
+      <header className="race-topbar">
+        <div className="race-topbar-left">
+          {!isReplay && onExitRace ? (
+            <button
+              type="button"
+              onClick={() => setExitConfirmOpen(true)}
+              className="race-topbar-btn"
+              aria-label="레이스 나가기"
+            >
+              <ArrowLeft size={16} aria-hidden="true" />
+              <span>나가기</span>
+            </button>
+          ) : isReplay && onExitReplay ? (
+            <button
+              type="button"
+              onClick={onExitReplay}
+              className="race-topbar-btn"
+              aria-label="뒤로 가기"
+            >
+              <ArrowLeft size={16} aria-hidden="true" />
+              <span>뒤로</span>
+            </button>
+          ) : (
+            <div className="race-topbar-spacer" aria-hidden="true" />
+          )}
+        </div>
+
+        <div className={`race-status-badge ${isReplay ? 'is-replay' : 'is-live'}`}>
+          <span className="race-status-dot" aria-hidden="true" />
+          <span>{isReplay ? '리플레이' : '마블 레이스'}</span>
+        </div>
+
+        <div className="race-topbar-right">
+          {!isReplay ? (
             <button
               type="button"
               onClick={toggleMute}
-              className={`btn-sound-toggle ${isMuted ? 'muted' : ''}`}
+              className={`race-sound-btn ${isMuted ? 'muted' : ''}`}
               aria-label={isMuted ? '효과음 켜기' : '효과음 끄기'}
               title={isMuted ? '효과음 켜기' : '효과음 끄기'}
             >
-              {isMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+              {isMuted ? <VolumeX size={18} aria-hidden="true" /> : <Volume2 size={18} aria-hidden="true" />}
             </button>
+          ) : (
+            <div className="race-topbar-spacer" aria-hidden="true" />
           )}
         </div>
-        <div className="live-rank">
-          {finishedPlayers.map((id, index) => {
-            const p = players.find((p) => p.id === id);
-            const color = PLAYER_COLORS[players.findIndex((player) => player.id === id) % PLAYER_COLORS.length];
-            return (
-              <div key={id} className="rank-badge fadeIn" style={{ borderLeft: `4px solid ${color}` }}>
-                <span className="rank-num">{index + 1}위</span>
-                <span className="rank-name">{p?.name}</span>
+      </header>
+
+      <RaceParticipantsStrip players={players} finishedPlayers={finishedPlayers} />
+
+      <div className={`canvas-container ${climaxInfo.active ? 'climax-mode' : ''}`}>
+        <div className="canvas-stage" ref={sceneRef} />
+
+        {(climaxBannerText || commentaryItem) && (
+          <div className="canvas-hud-overlay" aria-live="polite">
+            {climaxBannerText && (
+              <div className="climax-banner">{climaxBannerText}</div>
+            )}
+            {commentaryItem && (
+              <div key={commentaryItem.id} className={`commentary-banner tone-${commentaryItem.tone}`}>
+                {commentaryItem.text}
               </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="player-legend">
-        {players.map((p, i) => (
-          <div key={p.id} className="legend-item">
-            <span className="dot" style={{ backgroundColor: PLAYER_COLORS[i % PLAYER_COLORS.length] }}></span>
-            {p.name}
-          </div>
-        ))}
-      </div>
-
-      {(climaxBannerText || commentaryItem) && (
-        <div className="race-feed-area">
-          {climaxBannerText && (
-            <div className="climax-banner fadeIn">{climaxBannerText}</div>
-          )}
-          {commentaryItem && (
-            <div key={commentaryItem.id} className={`commentary-banner tone-${commentaryItem.tone}`}>
-              {commentaryItem.text}
-            </div>
-          )}
-        </div>
-      )}
-
-      <div
-        className={`glass-panel canvas-container ${climaxInfo.active ? 'climax-mode' : ''}`}
-        ref={sceneRef}
-      >
-        {/* 리플레이 조작 컨트롤 바 */}
-        {isReplay && (
-          <div className="replay-controls">
-            <div className="replay-timeline">
-              <input
-                type="range"
-                min={0}
-                max={totalDuration}
-                value={replayTimeState}
-                onChange={handleSeek}
-                className="replay-slider"
-              />
-              <span className="replay-time-text">
-                {(replayTimeState / 1000).toFixed(1)}s / {(totalDuration / 1000).toFixed(1)}s
-              </span>
-            </div>
-
-            <div className="replay-buttons">
-              <div className="replay-btn-group">
-                <button
-                  onClick={togglePlayback}
-                  className={`btn-icon ${isPlaying ? 'active' : ''}`}
-                  title={isPlaying ? '일시정지' : '재생'}
-                >
-                  {isPlaying ? <Pause size={18} /> : <Play size={18} />}
-                </button>
-
-                <div className="playback-rate-selector">
-                  {([1, 2, 4] as const).map((rate) => (
-                    <button
-                      key={rate}
-                      onClick={() => setPlaybackRate(rate)}
-                      className={`rate-btn ${playbackRate === rate ? 'active' : ''}`}
-                    >
-                      {rate}x
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {onExitReplay && (
-                <button onClick={onExitReplay} className="btn-exit-replay">
-                  <LogOut size={16} style={{ marginRight: '6px', verticalAlign: 'middle', display: 'inline-block' }} />
-                  나가기
-                </button>
-              )}
-            </div>
+            )}
           </div>
         )}
+
+        {/* 리플레이 조작 컨트롤 바 */}
+        {isReplay && (
+          <ReplayControlsBar
+            currentTimeSec={replayTimeState / 1000}
+            totalDurationSec={totalDuration / 1000}
+            sliderMax={totalDuration}
+            sliderValue={replayTimeState}
+            isPlaying={isPlaying}
+            playbackRate={playbackRate}
+            onSeek={handleSeek}
+            onTogglePlayback={togglePlayback}
+            onChangeRate={setPlaybackRate}
+            onExitReplay={onExitReplay}
+          />
+        )}
       </div>
+
+      <ConfirmDialog
+        open={exitConfirmOpen}
+        variant="danger"
+        title="레이스를 중단할까요?"
+        description="현재 진행 중인 마블 레이스가 취소되고 설정 화면으로 돌아갑니다."
+        confirmLabel="나가기"
+        cancelLabel="계속 보기"
+        onConfirm={() => {
+          setExitConfirmOpen(false);
+          onExitRace?.();
+        }}
+        onCancel={() => setExitConfirmOpen(false)}
+      />
     </div>
   );
 }

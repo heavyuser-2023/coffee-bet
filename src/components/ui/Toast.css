@@ -1,0 +1,90 @@
+@layer components {
+  .ui-toast-host {
+    position: fixed;
+    inset: calc(64px + env(safe-area-inset-top, 0px)) 0 auto 0;
+    margin: 0 auto;
+    padding: 0 16px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 10000;
+    overflow: visible;
+  }
+
+  .ui-toast-host:not(.is-visible) {
+    display: none;
+  }
+
+  .ui-toast {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 100%;
+    padding: 10px 16px;
+    border-radius: var(--radius-pill);
+    background: rgba(22, 26, 38, 0.94);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border-strong);
+    color: var(--text-primary);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.48);
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.4;
+    animation: toastEnter 0.2s ease-out;
+  }
+
+  .ui-toast--default .ui-toast-icon {
+    color: var(--accent-bright);
+  }
+
+  .ui-toast--success {
+    border-color: rgba(16, 185, 129, 0.42);
+  }
+
+  .ui-toast--success .ui-toast-icon {
+    color: var(--success);
+  }
+
+  .ui-toast--error {
+    border-color: rgba(239, 68, 68, 0.45);
+  }
+
+  .ui-toast--error .ui-toast-icon {
+    color: #f87171;
+  }
+
+  .ui-toast-icon {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .ui-toast-text {
+    min-width: 0;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+}
+
+@keyframes toastEnter {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-toast {
+    animation: none;
+  }
+}

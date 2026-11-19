@@ -1,0 +1,211 @@
+@layer components {
+  .app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 52px;
+    margin-bottom: 12px;
+  }
+
+  .app-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex-shrink: 1;
+  }
+
+  .app-brand-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-deep) 100%);
+    color: #0c0e14;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.28);
+    flex-shrink: 0;
+  }
+
+  .app-brand-name {
+    font-family: var(--font-display);
+    font-size: 1.12rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .app-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .app-header-icon-btn {
+    border-radius: var(--radius-pill);
+  }
+
+  .app-install-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    min-height: 44px;
+    padding: 0 11px;
+    border-radius: var(--radius-pill);
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-border);
+    color: var(--accent-bright);
+    font-size: 0.8rem;
+    font-weight: 700;
+    white-space: nowrap;
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      transform 0.15s ease;
+  }
+
+  .app-install-btn:hover {
+    background: rgba(245, 158, 11, 0.22);
+    border-color: rgba(245, 158, 11, 0.55);
+  }
+
+  .app-install-btn:active {
+    transform: scale(0.96);
+  }
+
+  .app-header--split {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .app-header-left {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    min-width: 0;
+  }
+
+  .app-header-center-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--text-primary);
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .app-header-right {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .app-header-text-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 44px;
+    padding: 0 10px 0 6px;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: color 0.2s ease, background-color 0.2s ease;
+  }
+
+  .app-header-text-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .app-header-stat-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0 12px;
+    border-radius: var(--radius-pill);
+    background: var(--surface-2);
+    border: 1px solid var(--border-default);
+    color: var(--text-primary);
+    font-size: 0.84rem;
+    font-weight: 600;
+    white-space: nowrap;
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      transform 0.15s ease;
+  }
+
+  .app-header-stat-btn:hover {
+    background: var(--surface-3);
+    border-color: var(--border-strong);
+  }
+
+  .app-header-stat-btn:active {
+    transform: scale(0.96);
+  }
+}
+
+@media (max-width: 400px) {
+  .app-install-label {
+    display: none;
+  }
+
+  .app-install-btn {
+    width: 44px;
+    padding: 0;
+  }
+
+  .app-header-stat-label {
+    display: none;
+  }
+
+  .app-header-stat-btn {
+    width: 44px;
+    padding: 0;
+  }
+}
+
+@media (max-width: 360px) {
+  .app-header {
+    gap: 6px;
+  }
+
+  .app-brand {
+    gap: 6px;
+  }
+
+  .app-brand-name {
+    font-size: 0.94rem;
+    letter-spacing: -0.03em;
+  }
+
+  .app-brand-icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+  }
+
+  .app-brand-icon svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  .app-header-actions {
+    gap: 4px;
+  }
+}

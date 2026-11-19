@@ -1,174 +1,124 @@
-.user-menu-container {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
+@layer components {
+  .user-menu-container {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .user-menu-skeleton {
+    width: 78px;
+    height: 44px;
+    border-radius: var(--radius-pill);
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    opacity: 0.45;
+  }
+
+  .user-menu-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 0 13px;
+    border-radius: var(--radius-pill);
+    font-size: 0.85rem;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      transform 0.15s ease;
+  }
+
+  .user-menu-pill:active:not(:disabled) {
+    transform: scale(0.96);
+  }
+
+  .user-menu-pill:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  .user-menu-login {
+    background: var(--surface-2);
+    color: var(--text-primary);
+    border: 1px solid var(--border-default);
+  }
+
+  .user-menu-login:hover:not(:disabled) {
+    background: var(--surface-3);
+    border-color: var(--border-strong);
+  }
+
+  .user-menu-account {
+    background: var(--surface-2);
+    color: var(--text-primary);
+    border: 1px solid rgba(16, 185, 129, 0.34);
+  }
+
+  .user-menu-account:hover {
+    background: var(--surface-3);
+    border-color: rgba(16, 185, 129, 0.52);
+  }
+
+  .user-menu-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--success);
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
+    flex-shrink: 0;
+  }
+
+  .account-modal-content {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .account-status-card {
+    padding: 14px 16px;
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+  }
+
+  .account-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: var(--radius-pill);
+    background: var(--success-soft);
+    color: #6ee7b7;
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+
+  .account-status-desc {
+    margin-top: 10px;
+    font-size: 0.86rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+
+  .account-modal-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .account-modal-actions .ui-btn {
+    width: 100%;
+  }
 }
 
-.user-menu-invisible {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.user-info-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(0, 0, 0, 0.2);
-  padding: 6px 6px 6px 12px;
-  border-radius: 20px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.user-badge {
-  display: flex;
-  align-items: center;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: #a7f3d0;
-}
-
-.icon-mr-sm {
-  margin-right: 4px;
-}
-
-.btn-icon-small {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-icon-small:hover {
-  background: rgba(239, 68, 68, 0.2);
-  color: #fca5a5;
-  transform: scale(1.05);
-}
-
-.btn-login-small {
-  display: flex;
-  align-items: center;
-  padding: 8px 16px;
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 20px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-delete-account:hover {
-  background: rgba(239, 68, 68, 0.15);
-  color: #fca5a5;
-  transform: scale(1.05);
-}
-
-.btn-login-small:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-/* 계정 삭제 확인 모달 */
-.delete-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  animation: fadeIn 0.2s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.delete-modal {
-  background: #1e1e2e;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 16px;
-  padding: 28px;
-  max-width: 340px;
-  width: 90%;
-  text-align: center;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-  animation: slideUp 0.25s ease;
-}
-
-@keyframes slideUp {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-.delete-modal h3 {
-  margin: 0 0 12px 0;
-  font-size: 1.15rem;
-  color: #fff;
-}
-
-.delete-modal p {
-  margin: 0 0 24px 0;
-  font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.6);
-  line-height: 1.5;
-}
-
-.delete-modal-buttons {
-  display: flex;
-  gap: 10px;
-}
-
-.btn-cancel {
-  flex: 1;
-  padding: 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-cancel:hover {
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.btn-confirm-delete {
-  flex: 1;
-  padding: 10px;
-  border-radius: 10px;
-  border: none;
-  background: #ef4444;
-  color: #fff;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.btn-confirm-delete:hover {
-  background: #dc2626;
-}
-
-.btn-confirm-delete:disabled,
-.btn-cancel:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+@media (max-width: 360px) {
+  .user-menu-pill {
+    padding: 0 9px;
+    gap: 4px;
+    font-size: 0.78rem;
+  }
 }

@@ -1,301 +1,607 @@
-.result-container {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
+@layer components {
+  .result-container {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* 당첨자 스포트라이트 히어로 카드 */
+  .result-hero-card {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px;
+    background:
+      radial-gradient(circle at 90% 10%, rgba(239, 68, 68, 0.16), transparent 52%),
+      radial-gradient(circle at 10% 90%, rgba(245, 158, 11, 0.14), transparent 50%),
+      var(--surface-1);
+    border: 1px solid var(--accent-border);
+    box-shadow:
+      0 14px 36px rgba(0, 0, 0, 0.36),
+      inset 0 1px 0 rgba(255, 255, 255, 0.07);
+    animation: fadeInUp 0.4s ease-out;
+  }
+
+  .result-hero-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .result-hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-border);
+    color: var(--accent-bright);
+    font-size: 0.78rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+
+  .result-hero-mode {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .result-hero-single {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .result-hero-identity {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .result-hero-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 2px solid rgba(255, 255, 255, 0.4);
+  }
+
+  .result-hero-dot.is-compact {
+    width: 13px;
+    height: 13px;
+    border-width: 1.5px;
+  }
+
+  .result-hero-name {
+    font-size: 1.38rem;
+    font-weight: 800;
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .result-hero-metrics {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    flex-shrink: 0;
+    text-align: right;
+  }
+
+  .result-hero-primary {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #fca5a5;
+    white-space: nowrap;
+  }
+
+  .result-hero-record {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  /* 공동 당첨자 리스트 */
+  .result-hero-co-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .result-hero-co-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: var(--radius-md);
+    background: rgba(12, 14, 20, 0.42);
+    border: 1px solid var(--border-subtle);
+    min-width: 0;
+  }
+
+  .result-hero-co-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .result-hero-co-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .result-hero-co-right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 1px;
+    flex-shrink: 0;
+    text-align: right;
+  }
+
+  .result-hero-co-value {
+    font-size: 0.92rem;
+    font-weight: 800;
+    color: #fca5a5;
+    white-space: nowrap;
+  }
+
+  .result-hero-co-stat {
+    font-size: 0.73rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  /* 순위표 카드 */
+  .result-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+    animation: fadeInUp 0.45s ease-out;
+  }
+
+  .result-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .result-panel-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .result-panel-count {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    padding: 2px 9px;
+    border-radius: var(--radius-pill);
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+  }
+
+  .result-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .result-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 11px 12px;
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    min-width: 0;
+    opacity: 0;
+    animation: fadeInUp 0.36s ease-out forwards;
+  }
+
+  .result-item.is-loser {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.14), rgba(234, 88, 12, 0.1));
+    border-color: rgba(239, 68, 68, 0.36);
+  }
+
+  .result-item-left {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .result-rank-badge {
+    min-width: 34px;
+    height: 28px;
+    padding: 0 6px;
+    border-radius: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.76rem;
+    font-weight: 800;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+
+  .result-rank-badge.is-first {
+    background: var(--accent-soft);
+    border-color: var(--accent-border);
+    color: var(--accent-bright);
+  }
+
+  .result-rank-badge.is-second {
+    background: rgba(226, 232, 240, 0.1);
+    border-color: rgba(226, 232, 240, 0.24);
+    color: #e2e8f0;
+  }
+
+  .result-rank-badge.is-third {
+    background: rgba(217, 119, 6, 0.14);
+    border-color: rgba(217, 119, 6, 0.3);
+    color: #fdba74;
+  }
+
+  .result-rank-badge.is-loser {
+    background: var(--danger-soft);
+    border-color: rgba(239, 68, 68, 0.4);
+    color: #fca5a5;
+  }
+
+  .result-player-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .result-player-name {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .result-outcome {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    flex-shrink: 0;
+    text-align: right;
+  }
+
+  .result-outcome-main {
+    font-size: 0.94rem;
+    font-weight: 800;
+    line-height: 1.25;
+    white-space: nowrap;
+  }
+
+  .result-outcome-main.is-danger {
+    color: #fca5a5;
+  }
+
+  .result-outcome-main.is-warning {
+    color: var(--accent-bright);
+  }
+
+  .result-outcome-main.is-success {
+    color: var(--success);
+  }
+
+  .result-outcome-sub {
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  .result-summary {
+    padding-top: 12px;
+    border-top: 1px dashed var(--border-default);
+    text-align: center;
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    line-height: 1.45;
+  }
+
+  .result-summary strong {
+    color: var(--accent-bright);
+    font-weight: 700;
+  }
+
+  /* 오늘의 커피 통계 위트 카드 */
+  .witty-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+    background: var(--surface-1);
+    border-color: var(--accent-border);
+    animation: fadeInUp 0.5s ease-out;
+  }
+
+  .witty-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .witty-title-wrap {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  .witty-title-icon {
+    color: var(--accent-bright);
+    flex-shrink: 0;
+  }
+
+  .witty-header h3 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .witty-more {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    min-height: 44px;
+    padding: 0 12px;
+    border-radius: var(--radius-pill);
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-border);
+    color: var(--accent-bright);
+    font-size: 0.8rem;
+    font-weight: 700;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background-color 0.2s ease, transform 0.15s ease;
+  }
+
+  .witty-more:hover {
+    background: rgba(245, 158, 11, 0.22);
+  }
+
+  .witty-more:active {
+    transform: scale(0.96);
+  }
+
+  .witty-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .witty-lines li {
+    font-size: 0.88rem;
+    line-height: 1.48;
+    color: var(--text-primary);
+    padding: 10px 12px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    opacity: 0;
+    animation: fadeInUp 0.36s ease-out forwards;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+
+  .witty-loading {
+    font-size: 0.86rem;
+    color: var(--text-secondary);
+  }
+
+  /* 재경기 중심 하단 액션 동선 */
+  .result-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: auto;
+    padding-top: 4px;
+  }
+
+  .result-cta-primary,
+  .result-cta-secondary {
+    width: 100%;
+    min-height: 50px;
+  }
+
+  .result-sub-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .result-sub-btn {
+    min-width: 0;
+    padding: 10px 10px;
+    font-size: 0.88rem;
+  }
+
+  /* 참가자 저장 모달 본문 */
+  .result-save-modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .result-save-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .result-save-label {
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .result-save-input {
+    width: 100%;
+    min-height: 46px;
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    font-size: 0.96rem;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+  }
+
+  .result-save-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    background: var(--surface-3);
+  }
+
+  .result-save-auth-desc {
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: var(--text-secondary);
+  }
+
+  .result-save-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px;
+    border-radius: var(--radius-md);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-subtle);
+    max-height: 140px;
+    overflow-y: auto;
+  }
+
+  .result-save-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    max-width: 100%;
+  }
+
+  .result-save-chip > span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .result-save-chip-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
 }
 
-.result-panel {
-  padding: 24px;
-  margin-bottom: 24px;
-  animation: fadeInUp 0.6s ease-out;
+@media (max-width: 360px) {
+  .result-hero-card,
+  .result-panel,
+  .witty-card {
+    padding: 14px;
+  }
+
+  .result-hero-single {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .result-hero-metrics {
+    width: 100%;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    text-align: left;
+    padding-top: 8px;
+    border-top: 1px dashed var(--border-subtle);
+  }
+
+  .result-item {
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .result-item-left {
+    gap: 7px;
+  }
+
+  .result-rank-badge {
+    min-width: 30px;
+    height: 26px;
+    font-size: 0.72rem;
+    padding: 0 5px;
+  }
+
+  .result-sub-actions {
+    gap: 8px;
+  }
+
+  .result-sub-btn {
+    font-size: 0.82rem;
+    padding: 10px 8px;
+    gap: 6px;
+  }
 }
 
-.result-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.result-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: transform 0.2s;
-  opacity: 0;
-  animation-fill-mode: forwards;
-}
-
-.result-item:hover {
-  transform: translateX(4px);
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.result-item.last-place {
-  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(185, 28, 28, 0.2));
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  transform: scale(1.02);
-  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.15);
-}
-
-.result-item.last-place:hover {
-  transform: scale(1.02) translateX(4px);
-}
-
-.rank {
-  width: 40px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.rank-text {
-  font-weight: 800;
-  color: var(--text-secondary);
-  font-size: 1.1rem;
-}
-
-.icon-gold {
-  color: #fbbf24;
-}
-
-.icon-silver {
-  color: #9ca3af;
-}
-
-.player-info {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-left: 12px;
-  font-size: 1.1rem;
-  font-weight: 600;
-}
-
-.player-info .dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  box-shadow: 0 0 8px currentColor;
-}
-
-.amount {
-  text-align: right;
-}
-
-.amount-value {
-  font-size: 1.2rem;
-  font-weight: 800;
-}
-
-.text-danger {
-  color: #fca5a5;
-  text-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
-}
-
-.text-success {
-  color: var(--success);
-  text-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
-}
-
-/* 랜덤 분배에서 일부 금액을 부담하는 참가자 (최고 금액자가 아닌 경우) */
-.text-warning {
-  color: #fcd34d;
-  text-shadow: 0 0 10px rgba(245, 158, 11, 0.3);
-}
-
-.summary {
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px dashed rgba(255, 255, 255, 0.2);
-  text-align: center;
-  color: var(--text-secondary);
-  font-size: 1.1rem;
-}
-
-.summary strong {
-  margin-left: 8px;
-  color: white;
-  font-size: 1.3rem;
-  background: linear-gradient(135deg, var(--primary), var(--secondary));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.restart-btn {
-  margin-top: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #10b981, #059669);
-  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
-}
-
-.restart-btn:hover {
-  background: linear-gradient(135deg, #059669, #047857);
-  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6);
-}
-
-.action-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 100%;
-  margin-top: auto;
-}
-
-.share-replay-btn {
-  width: 100%;
-  padding: 14px 24px;
-  background: rgba(139, 92, 246, 0.1);
-  border: 1px solid rgba(139, 92, 246, 0.4);
-  color: #c084fc;
-  border-radius: 12px;
-  font-size: 1.05rem;
-  font-weight: 600;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.1);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.share-replay-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--primary), var(--secondary));
-  color: white;
-  border-color: transparent;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
-}
-
-.share-replay-btn:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-.share-replay-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: var(--text-secondary);
-  box-shadow: none;
-  transform: none;
-}
-
-/* Save Group Section */
-.save-group-section {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 24px;
-}
-
-.save-group-btn {
-  width: 100%;
-  padding: 14px 24px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px dashed rgba(255, 255, 255, 0.3);
-  color: white;
-  border-radius: 12px;
-  font-size: 1.05rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-}
-
-.save-group-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.15);
-  border-style: solid;
-  border-color: var(--primary);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2);
-}
-
-.save-group-btn:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-.save-group-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-}
-
-/* Modal Styles */
-.modal-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-  padding: 20px;
-}
-
-.modal-content {
-  padding: 30px;
-  border-radius: 20px;
-  width: 100%;
-  max-width: 400px;
-  text-align: center;
-}
-
-.modal-content h3 {
-  margin-top: 0;
-  margin-bottom: 10px;
-}
-
-.modal-content p {
-  color: #a1a1aa;
-  font-size: 0.9rem;
-  margin-bottom: 20px;
-  line-height: 1.4;
-}
-
-.group-input {
-  width: 100%;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: white;
-  padding: 12px 16px;
-  border-radius: 12px;
-  font-size: 1rem;
-  margin-bottom: 24px;
-}
-
-.group-input:focus {
-  outline: none;
-  border-color: var(--primary);
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.modal-actions {
-  display: flex;
-  gap: 12px;
-}
-
-.modal-actions button {
-  flex: 1;
-}
-
-.btn-outline {
-  background: transparent;
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  padding: 12px;
-  border-radius: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-outline:hover {
-  background: rgba(255, 255, 255, 0.1);
+@media (prefers-reduced-motion: reduce) {
+  .result-hero-card,
+  .result-panel,
+  .witty-card,
+  .result-item,
+  .witty-lines li {
+    animation: none;
+    opacity: 1;
+  }
 }

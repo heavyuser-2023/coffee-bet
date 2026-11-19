@@ -1,12 +1,28 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Player, GameMode } from '../types';
+import type { ToastTone } from './ui/Toast';
+import { Modal } from './ui/Modal';
+import { ConfirmDialog } from './ui/ConfirmDialog';
+import { PLAYER_COLORS } from '../constants';
+import { rollRandomAmounts } from '../game/amounts';
 import './SetupScreen.css';
-import { Users, Plus, X, Shuffle, DollarSign, Play, DownloadCloud, Save, GripVertical, History, BarChart3 } from 'lucide-react';
+import {
+  Users,
+  Plus,
+  X,
+  Shuffle,
+  Play,
+  DownloadCloud,
+  Save,
+  GripVertical,
+  Flame,
+  Coffee,
+  Trash2,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { useQuery, useMutation, useConvexAuth } from 'convex/react';
-
 import { api } from '../../convex/_generated/api';
-import { computeOutcome } from '../game/outcome';
-import { StatsModal } from './StatsModal';
+import type { Doc, Id } from '../../convex/_generated/dataModel';
 
 interface Props {
   players: Player[];
@@ -17,9 +33,23 @@ interface Props {
   setGameMode: (mode: GameMode) => void;
   onStart: (amounts: number[]) => void;
   onSignIn: () => Promise<void>;
-  deviceId: string;
-  onSelectReplay: (id: string) => void;
+  onNotify: (msg: string, tone?: ToastTone) => void;
 }
+
+interface QuickChip {
+  label: string;
+  ariaLabel: string;
+  mode: 'add' | 'set';
+  value: number;
+}
+
+const QUICK_AMOUNT_CHIPS: QuickChip[] = [
+  { label: '+5천', ariaLabel: '총 금액에 5,000원 더하기', mode: 'add', value: 5000 },
+  { label: '+1만', ariaLabel: '총 금액에 10,000원 더하기', mode: 'add', value: 10000 },
+  { label: '1만', ariaLabel: '총 금액을 10,000원으로 설정', mode: 'set', value: 10000 },
+  { label: '2만', ariaLabel: '총 금액을 20,000원으로 설정', mode: 'set', value: 20000 },
+  { label: '3만', ariaLabel: '총 금액을 30,000원으로 설정', mode: 'set', value: 30000 },
+];
 
 export function SetupScreen({
   players,
@@ -30,218 +60,232 @@ export function SetupScreen({
   setGameMode,
   onStart,
   onSignIn,
-  deviceId,
-  onSelectReplay
+  onNotify,
 }: Props) {
   const { isAuthenticated, isLoading } = useConvexAuth();
-  // 로그인된 경우 저장된 그룹 목록을 가져옴
-  const savedGroups = useQuery(api.participants.getGroups, isAuthenticated ? undefined : "skip");
-  // 최근 리플레이 목록을 가져옴
-  const savedReplays = useQuery(api.replays.getReplays, { deviceId });
+  const savedGroups = useQuery(api.participants.getGroups, isAuthenticated ? undefined : 'skip');
   const saveGroup = useMutation(api.participants.saveGroup);
   const deleteGroup = useMutation(api.participants.deleteGroup);
 
-  const [randomAmountsPool, setRandomAmountsPool] = useState<number[]>([]);
+  const [randomAmountsPool, setRandomAmountsPool] = useState<number[]>(() =>
+    gameMode === 'random' ? rollRandomAmounts(players.length, totalAmount) : [],
+  );
   const [isCalculating, setIsCalculating] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const [isLoadModalOpen, setIsLoadModalOpen] = useState(false);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
-  const [isReplayModalOpen, setIsReplayModalOpen] = useState(false);
-  const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
-  const [saveTitle, setSaveTitle] = useState("");
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [saveTitle, setSaveTitle] = useState('');
+  const [isSavingGroup, setIsSavingGroup] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: Id<'participantGroups'>;
+    title: string;
+  } | null>(null);
+  const [isDeletingGroup, setIsDeletingGroup] = useState(false);
 
-  // 연속 호출 시 이전 타이머가 새 토스트를 조기에 지우지 않도록 추적
-  const toastTimerRef = useRef<number | null>(null);
+  const calcTimerRef = useRef<number | null>(null);
+  const playerInputRefs = useRef<Map<string, HTMLInputElement>>(new Map());
+  const lastAddedIdRef = useRef<string | null>(null);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    if (toastTimerRef.current) {
-      clearTimeout(toastTimerRef.current);
+  // 언마운트 시 대기 중인 분배 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (calcTimerRef.current !== null) {
+        window.clearTimeout(calcTimerRef.current);
+      }
+    };
+  }, []);
+
+  // 랜덤 금액 분배 로직 (순위별 금액 풀 생성)
+  // isManual: 재분배 버튼을 직접 누른 경우 (금액 미입력 안내 토스트 노출 및 셔플 연출)
+  const calculateRandomAmounts = useCallback(
+    (isManual = false) => {
+      if (calcTimerRef.current !== null) {
+        window.clearTimeout(calcTimerRef.current);
+        calcTimerRef.current = null;
+      }
+
+      if (totalAmount <= 0) {
+        setRandomAmountsPool(Array.from({ length: players.length }, () => 0));
+        setIsCalculating(false);
+        if (isManual) {
+          onNotify('총 금액을 먼저 입력해주세요.', 'error');
+        }
+        return;
+      }
+
+      setIsCalculating(true);
+      const count = players.length;
+      const amount = totalAmount;
+
+      calcTimerRef.current = window.setTimeout(() => {
+        setRandomAmountsPool((prev) => rollRandomAmounts(count, amount, prev));
+        setIsCalculating(false);
+        calcTimerRef.current = null;
+      }, isManual ? 360 : 120);
+    },
+    [players.length, totalAmount, onNotify],
+  );
+
+  useEffect(() => {
+    if (gameMode === 'random') {
+      calculateRandomAmounts(false);
+    } else {
+      if (calcTimerRef.current !== null) {
+        window.clearTimeout(calcTimerRef.current);
+        calcTimerRef.current = null;
+      }
+      setIsCalculating(false);
+      setRandomAmountsPool([]);
     }
-    toastTimerRef.current = window.setTimeout(() => {
-      setToastMessage(null);
-      toastTimerRef.current = null;
-    }, 4000); // 4초간 노출 (사용자 요청 반영: 더 오래 유지)
-  };
+  }, [gameMode, calculateRandomAmounts]);
 
-  const handleDeleteGroup = async (id: any, title: string) => {
-    if (window.confirm(`'${title}' 그룹을 삭제하시겠습니까?`)) {
+  // 로그인 성공 후 로컬 스토리지에 있는 백업 데이터를 자동 저장 처리 및 불러오기 연계
+  useEffect(() => {
+    if (!isAuthenticated || isLoading) return;
+
+    const pendingSave = localStorage.getItem('coffeebet_pending_save');
+    if (pendingSave) {
       try {
-        await deleteGroup({ id });
-        showToast(`'${title}' 그룹을 삭제했습니다.`);
+        const parsed = JSON.parse(pendingSave) as {
+          title?: unknown;
+          players?: unknown;
+        };
+        if (typeof parsed.title === 'string' && parsed.title.trim() && Array.isArray(parsed.players)) {
+          const title = parsed.title.trim();
+          const pendingPlayers = parsed.players as Player[];
+          const doPendingSave = async () => {
+            try {
+              await saveGroup({
+                title,
+                players: pendingPlayers,
+              });
+              onNotify(`'${title}' 그룹을 로그인 계정에 저장했습니다.`, 'success');
+            } catch (e) {
+              console.error('자동 저장 에러:', e);
+              onNotify('로그인 후 자동 저장에 실패했습니다.', 'error');
+            } finally {
+              localStorage.removeItem('coffeebet_pending_save');
+            }
+          };
+          void doPendingSave();
+        } else {
+          localStorage.removeItem('coffeebet_pending_save');
+        }
       } catch (e) {
-        console.error(e);
-        showToast("삭제 중 오류가 발생했습니다.");
+        console.error('임시 저장 파싱 에러:', e);
+        localStorage.removeItem('coffeebet_pending_save');
       }
     }
-  };
+
+    const pendingLoad = localStorage.getItem('coffeebet_pending_load');
+    if (pendingLoad === 'true') {
+      setIsLoadModalOpen(true);
+      localStorage.removeItem('coffeebet_pending_load');
+    }
+  }, [isAuthenticated, isLoading, saveGroup, onNotify]);
+
+  // 새로 추가된 참가자 입력으로 포커스 이동
+  useEffect(() => {
+    if (!lastAddedIdRef.current) return;
+    const targetId = lastAddedIdRef.current;
+    lastAddedIdRef.current = null;
+    const input = playerInputRefs.current.get(targetId);
+    if (input) {
+      input.focus();
+      input.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [players]);
 
   const openLoadModal = async () => {
     if (!isAuthenticated) {
       try {
         localStorage.setItem('coffeebet_pending_load', 'true');
-        showToast("로그인이 필요합니다. 로그인하면 불러오기 창이 자동으로 열립니다.");
+        onNotify('로그인이 필요합니다. 로그인하면 불러오기 창이 자동으로 열립니다.');
         await onSignIn();
       } catch (e) {
         console.error(e);
-        showToast("로그인 진행 중 오류가 발생했습니다.");
+        onNotify('로그인 진행 중 오류가 발생했습니다.', 'error');
       }
       return;
     }
-    setIsModalOpen(true);
+    setIsLoadModalOpen(true);
   };
 
   const openSaveModal = () => {
     if (players.length === 0) {
-      showToast("저장할 참가자가 없습니다.");
+      onNotify('저장할 참가자가 없습니다.', 'error');
       return;
     }
     setIsSaveModalOpen(true);
   };
 
   const handleSaveGroup = async () => {
-    if (!saveTitle.trim()) {
-      showToast("그룹 이름을 입력해주세요.");
+    const trimmedTitle = saveTitle.trim();
+    if (!trimmedTitle) {
+      onNotify('그룹 이름을 입력해주세요.', 'error');
       return;
     }
-    
+
     if (!isAuthenticated) {
       try {
         const pendingData = {
           players,
           totalAmount,
           gameMode,
-          title: saveTitle.trim()
+          title: trimmedTitle,
         };
         localStorage.setItem('coffeebet_pending_save', JSON.stringify(pendingData));
-        showToast("로그인이 필요합니다. 로그인하면 그룹이 자동으로 저장됩니다.");
+        onNotify('로그인이 필요합니다. 로그인하면 그룹이 자동으로 저장됩니다.');
         setIsSaveModalOpen(false);
-        setSaveTitle("");
+        setSaveTitle('');
         await onSignIn();
       } catch (e) {
         console.error(e);
-        showToast("로그인 진행 중 오류가 발생했습니다.");
+        onNotify('로그인 진행 중 오류가 발생했습니다.', 'error');
       }
       return;
     }
 
+    setIsSavingGroup(true);
     try {
       await saveGroup({
-        title: saveTitle.trim(),
-        players: players,
+        title: trimmedTitle,
+        players,
       });
-      showToast(`'${saveTitle.trim()}' 그룹을 저장했습니다.`);
-      setSaveTitle("");
+      onNotify(`'${trimmedTitle}' 그룹을 저장했습니다.`, 'success');
+      setSaveTitle('');
       setIsSaveModalOpen(false);
     } catch (e) {
       console.error(e);
-      showToast("저장 중 오류가 발생했습니다.");
+      onNotify('저장 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setIsSavingGroup(false);
     }
   };
 
-  const handleLoadGroup = (group: any) => {
-    setPlayers(group.players);
-    setIsModalOpen(false);
+  const handleLoadGroup = (group: Doc<'participantGroups'>) => {
+    setPlayers(group.players.map((p) => ({ id: p.id, name: p.name })));
+    setIsLoadModalOpen(false);
+    onNotify(`'${group.title}' 그룹(${group.players.length}명)을 불러왔습니다.`, 'success');
   };
 
-  // 가중치 기반으로 총액을 100원 단위로 나눈 금액 풀 1회 생성.
-  // 남은 금액을 넘지 않게 클램핑하므로 마지막 몫이 음수가 되는 일이 없다 (재시도 불필요).
-  const rollAmounts = (): number[] => {
-    const weights = players.map(() => Math.random() + 0.1);
-    const weightSum = weights.reduce((a, b) => a + b, 0);
-
-    const amounts: number[] = [];
-    let remaining = totalAmount;
-    for (let i = 0; i < players.length - 1; i++) {
-      const rawAmount = (weights[i] / weightSum) * totalAmount;
-      const amount = Math.min(Math.round(rawAmount / 100) * 100, remaining);
-      amounts.push(amount);
-      remaining -= amount;
+  const handleConfirmDeleteGroup = async () => {
+    if (!deleteTarget) return;
+    setIsDeletingGroup(true);
+    try {
+      await deleteGroup({ id: deleteTarget.id });
+      onNotify(`'${deleteTarget.title}' 그룹을 삭제했습니다.`, 'success');
+      setDeleteTarget(null);
+    } catch (e) {
+      console.error(e);
+      onNotify('삭제 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setIsDeletingGroup(false);
     }
-    amounts.push(remaining);
-
-    // 내림차순(가장 많은 금액을 꼴찌나 1등이 낼 수 있게 자유롭게 정렬, 혹은 게임 재미를 위해 섞거나 내림차순 정렬)
-    amounts.sort((a, b) => b - a);
-    return amounts;
   };
 
-  // 랜덤 금액 분배 로직 (순위별 금액 풀 생성)
-  // isManual: 재분배 버튼을 직접 누른 경우 (금액 미입력 안내 토스트는 이때만 노출)
-  const calculateRandomAmounts = (isManual = false) => {
-    if (totalAmount <= 0) {
-      setRandomAmountsPool(players.map(() => 0));
-      if (isManual) {
-        showToast("총 금액을 먼저 입력해주세요.");
-      }
-      return;
-    }
-
-    setIsCalculating(true);
-
-    setTimeout(() => {
-      setRandomAmountsPool(prev => {
-        // 직전 풀과 동일한 결과가 나오면 다시 굴려서 버튼을 누른 효과가 눈에 보이게 함
-        let amounts = rollAmounts();
-        for (let attempt = 0; attempt < 9 && amounts.join() === prev.join(); attempt++) {
-          amounts = rollAmounts();
-        }
-        return amounts;
-      });
-      setIsCalculating(false);
-    }, 400);
-  };
-
-  useEffect(() => {
-    if (gameMode === 'random') {
-      calculateRandomAmounts();
-    } else {
-      setRandomAmountsPool([]);
-    }
-  }, [gameMode, players.length, totalAmount]);
-
-  // 로그인 성공 후 로컬 스토리지에 있는 백업 데이터를 자동 저장 처리 및 불러오기 연계
-  useEffect(() => {
-    if (isAuthenticated && !isLoading) {
-      // 1. 저장하기 보류 확인
-      const pendingSave = localStorage.getItem('coffeebet_pending_save');
-      if (pendingSave) {
-        try {
-          const parsed = JSON.parse(pendingSave);
-          if (parsed.title) {
-            const doPendingSave = async () => {
-              try {
-                await saveGroup({
-                  title: parsed.title,
-                  players: parsed.players
-                });
-                showToast(`'${parsed.title}' 그룹을 로그인 계정에 저장했습니다.`);
-              } catch (e) {
-                console.error("자동 저장 에러:", e);
-                showToast("로그인 후 자동 저장에 실패했습니다.");
-              } finally {
-                localStorage.removeItem('coffeebet_pending_save');
-              }
-            };
-            doPendingSave();
-          }
-        } catch (e) {
-          console.error("임시 저장 파싱 에러:", e);
-          localStorage.removeItem('coffeebet_pending_save');
-        }
-      }
-
-      // 2. 불러오기 보류 확인
-      const pendingLoad = localStorage.getItem('coffeebet_pending_load');
-      if (pendingLoad === 'true') {
-        setIsModalOpen(true);
-        localStorage.removeItem('coffeebet_pending_load');
-      }
-    }
-  }, [isAuthenticated, isLoading, saveGroup]);
-
-  // 드래그앤드롭 상태
+  // 드래그앤드롭 상태 (터치 이동 중 상태 반영 전 touchmove가 먼저 발생할 수 있어 ref 병행)
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  // 터치 이동 중 상태 업데이트보다 touchmove가 먼저 발생할 수 있어 ref로 현재 위치 추적
   const draggedIndexRef = useRef<number | null>(null);
 
   const movePlayer = (from: number, to: number) => {
@@ -273,7 +317,7 @@ export function SetupScreen({
     setDraggedIndex(null);
   };
 
-  // 모바일: HTML5 DnD는 터치를 지원하지 않으므로 터치 이벤트로 처리
+  // 모바일: HTML5 DnD가 터치를 지원하지 않으므로 터치 이벤트로 순서 변경 처리
   const handleTouchStart = (index: number) => {
     draggedIndexRef.current = index;
     setDraggedIndex(index);
@@ -297,21 +341,6 @@ export function SetupScreen({
     setDraggedIndex(null);
   };
 
-  // 새로 추가된 참가자 입력으로 포커스 이동 (이름을 바로 입력할 수 있게)
-  const lastAddedIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!lastAddedIdRef.current) return;
-    const input = document.querySelector<HTMLInputElement>(
-      `.player-item[data-player-id="${lastAddedIdRef.current}"] input`
-    );
-    lastAddedIdRef.current = null;
-    if (input) {
-      input.focus();
-      input.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    }
-  }, [players]);
-
   const handleAddPlayer = () => {
     if (players.length >= 20) return;
     const newId = Date.now().toString();
@@ -321,383 +350,478 @@ export function SetupScreen({
 
   const handleRemovePlayer = (id: string) => {
     if (players.length <= 2) return;
-    setPlayers(players.filter(p => p.id !== id));
+    setPlayers(players.filter((p) => p.id !== id));
   };
 
   const updatePlayerName = (id: string, name: string) => {
-    setPlayers(players.map(p => p.id === id ? { ...p, name } : p));
+    setPlayers(players.map((p) => (p.id === id ? { ...p, name } : p)));
+  };
+
+  const handlePlayerKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
+    if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
+    e.preventDefault();
+    if (index < players.length - 1) {
+      const nextPlayer = players[index + 1];
+      const nextInput = playerInputRefs.current.get(nextPlayer.id);
+      if (nextInput) {
+        nextInput.focus();
+        nextInput.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    } else if (players.length < 20) {
+      handleAddPlayer();
+    } else {
+      e.currentTarget.blur();
+    }
+  };
+
+  const handleQuickChipClick = (chip: QuickChip) => {
+    if (chip.mode === 'add') {
+      setTotalAmount(Math.max(0, totalAmount) + chip.value);
+    } else {
+      setTotalAmount(chip.value);
+    }
   };
 
   const handleStart = () => {
     if (gameMode === 'random') {
       if (totalAmount <= 0) {
-        showToast("총 금액을 먼저 입력해주세요.");
+        onNotify('총 금액을 먼저 입력해주세요.', 'error');
         return;
       }
       if (isCalculating || randomAmountsPool.length !== players.length) {
-        showToast("금액을 분배하는 중입니다. 잠시 후 다시 시도해주세요.");
+        onNotify('금액을 분배하는 중입니다. 잠시 후 다시 시도해주세요.');
         return;
       }
     }
 
-    // 비어 있는 이름은 기본 이름으로 보정하여 레이스/결과 화면에서 빈 라벨이 생기지 않게 함
-    if (players.some(p => !p.name.trim())) {
+    // 비어 있는 이름은 기본 이름으로 보정해 레이스/결과 화면에서 빈 라벨이 생기지 않게 함
+    if (players.some((p) => !p.name.trim())) {
       setPlayers(players.map((p, i) => ({ ...p, name: p.name.trim() || `참가자 ${i + 1}` })));
     }
 
-    let finalAmounts: number[] = [];
-    if (gameMode === 'all-in') {
-      // 몰빵의 경우: 만 원 같은 고정 금액을 넣지 않고 0으로 전달하여 판수·승리/당첨 횟수로만 기록
-      finalAmounts = players.map(() => 0);
-    } else {
-      // 랜덤일 경우 그대로 전달 (내림차순 되어있음: 1등, 2등... 순위에 매핑할 수 있음)
-      finalAmounts = randomAmountsPool;
-    }
-    
+    const finalAmounts =
+      gameMode === 'all-in' ? players.map(() => 0) : randomAmountsPool;
+
     onStart(finalAmounts);
   };
 
+  const ctaSummaryText =
+    gameMode === 'all-in'
+      ? `${players.length}명 참가 · 한 명 몰빵`
+      : `${players.length}명 참가 · 총 ${totalAmount.toLocaleString()}원`;
+
   return (
     <div className="setup-container">
-      <div className="header">
-        <h1>Coffee Bet</h1>
-        <p>오늘의 커피, 누가 쏠까?</p>
-      </div>
+      <section className="setup-hero" aria-label="게임 설정 안내">
+        <p className="setup-hero-text">
+          참가자와 내기 방식을 고르고 마블 레이스를 시작하세요
+        </p>
+      </section>
 
-      <div className="glass-panel setup-panel">
-        <div className="section">
-          <h2>게임 모드</h2>
-          <div className="mode-toggle" style={{ marginBottom: '20px' }}>
-            <button 
-              className={`mode-btn ${gameMode === 'all-in' ? 'active' : ''}`}
+      <div className="setup-stack">
+        {/* 게임 모드 카드 */}
+        <section className="ui-card setup-card" aria-labelledby="setup-mode-heading">
+          <div className="setup-card-header">
+            <h2 id="setup-mode-heading" className="setup-section-title">
+              <SlidersHorizontal size={17} className="setup-title-icon" aria-hidden="true" />
+              <span>내기 방식</span>
+            </h2>
+          </div>
+
+          <div className="mode-segmented" role="group" aria-label="내기 방식 선택">
+            <button
+              type="button"
+              className={`mode-segment-btn ${gameMode === 'all-in' ? 'is-active' : ''}`}
               onClick={() => setGameMode('all-in')}
+              aria-pressed={gameMode === 'all-in'}
             >
-              🔥 한 명 몰빵
+              <Flame size={16} aria-hidden="true" />
+              <span>한 명 몰빵</span>
             </button>
-            <button 
-              className={`mode-btn ${gameMode === 'random' ? 'active' : ''}`}
+            <button
+              type="button"
+              className={`mode-segment-btn ${gameMode === 'random' ? 'is-active' : ''}`}
               onClick={() => setGameMode('random')}
+              aria-pressed={gameMode === 'random'}
             >
-              🎲 랜덤 분배
+              <Shuffle size={16} aria-hidden="true" />
+              <span>랜덤 분배</span>
             </button>
           </div>
 
-          {gameMode === 'random' ? (
-            <>
-              <div className="section-header" style={{ marginBottom: '12px' }}>
-                <h2>
-                  <DollarSign className="icon" /> 총 금액 설정
-                </h2>
+          {gameMode === 'all-in' ? (
+            <div className="rule-banner">
+              <Coffee size={16} className="rule-banner-icon" aria-hidden="true" />
+              <span>먼저 도착하면 통과 · 마지막 1명이 오늘의 커피 당첨</span>
+            </div>
+          ) : (
+            <div className="random-config">
+              <div className="amount-field-header">
+                <label htmlFor="total-amount-input" className="field-label">
+                  총 금액
+                </label>
+                <span className="field-hint">100원 단위 자동 분배</span>
               </div>
-              <div className="input-group">
+
+              <div className="amount-input-wrap">
                 <input
+                  id="total-amount-input"
                   type="number"
                   inputMode="numeric"
+                  className="amount-input tabular-nums"
                   value={totalAmount || ''}
-                  onChange={(e) => setTotalAmount(Math.max(0, parseInt(e.target.value) || 0))}
-                  placeholder="예: 15000"
-                  min="0"
-                  step="100"
+                  onChange={(e) => setTotalAmount(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                  placeholder="예: 20000"
+                  min={0}
+                  step={100}
                 />
-                <span className="currency">원</span>
-              </div>
-            </>
-          ) : (
-            <div className="all-in-amount-display" style={{ 
-              padding: '16px', 
-              background: 'rgba(255, 255, 255, 0.05)', 
-              borderRadius: '12px',
-              textAlign: 'center',
-              border: '1px solid rgba(239, 68, 68, 0.2)',
-              color: '#fca5a5',
-              fontWeight: '700',
-              fontSize: '1.1rem'
-            }}>
-              🏆 먼저 도착하면 승리! 마지막 1명이 당첨 ☕
-            </div>
-          )}
-        </div>
-
-        <div className="section">
-          <div className="section-header">
-            <h2>
-              <Users className="icon" /> 참가자 ({players.length}/20)
-            </h2>
-            {players.length < 20 && (
-              <button className="btn-icon btn-add" onClick={handleAddPlayer} aria-label="참가자 추가" title="참가자 추가">
-                <Plus size={18} />
-              </button>
-            )}
-          </div>
-          
-          <div className="player-list">
-            {players.map((p, index) => (
-              <div 
-                key={p.id} 
-                className={`player-item fadeIn ${draggedIndex === index ? 'dragging' : ''}`}
-                draggable
-                data-index={index}
-                data-player-id={p.id}
-                onDragStart={(e) => handleDragStart(e, index)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDragEnd={handleDragEnd}
-              >
-                <div
-                  className="drag-handle"
-                  style={{ display: 'flex', alignItems: 'center', color: '#64748b', cursor: 'grab', paddingRight: '4px', transition: 'color 0.2s', touchAction: 'none' }}
-                  onTouchStart={() => handleTouchStart(index)}
-                  onTouchMove={handleTouchMove}
-                  onTouchEnd={handleTouchEnd}
-                  onTouchCancel={handleTouchEnd}
-                >
-                  <GripVertical size={18} />
-                </div>
-                <div className="player-number">{index + 1}</div>
-                <input
-                  type="text"
-                  value={p.name}
-                  onChange={(e) => updatePlayerName(p.id, e.target.value)}
-                  onFocus={(e) => e.target.select()}
-                  placeholder="이름"
-                />
-                {players.length > 2 && (
-                  <button className="btn-icon btn-remove" onClick={() => handleRemovePlayer(p.id)} aria-label={`${p.name || '참가자'} 삭제`} title="삭제">
-                    <X size={16} />
+                {totalAmount > 0 && (
+                  <button
+                    type="button"
+                    className="amount-clear-btn"
+                    onClick={() => setTotalAmount(0)}
+                    aria-label="총 금액 초기화"
+                    title="금액 초기화"
+                  >
+                    <X size={15} aria-hidden="true" />
                   </button>
                 )}
+                <span className="amount-currency" aria-hidden="true">
+                  원
+                </span>
               </div>
-            ))}
-          </div>
-        </div>
 
-
-
-        {gameMode === 'random' && (
-          <div className="random-preview-section fadeIn">
-            <div className="preview-header">
-              <h3>순위별 결제 금액</h3>
-              <button
-                className={`btn-refresh ${isCalculating ? 'spinning' : ''}`}
-                onClick={() => calculateRandomAmounts(true)}
-              >
-                <Shuffle size={14} /> 재분배
-              </button>
-            </div>
-            <div className={`preview-list ${isCalculating ? 'calculating' : ''}`}>
-              <p style={{fontSize: '0.85rem', color: '#94a3b8', marginBottom: '8px'}}>마블 레이스 순위에 따라 아래 금액을 각자 결제하게 됩니다.</p>
-              {randomAmountsPool.map((amt, idx) => (
-                <div key={idx} className="preview-item">
-                  <span className="name">{idx + 1}위 금액</span>
-                  <span className="amount">
-                    {amt.toLocaleString()}원
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="load-group-section" style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
-        <button className="btn-secondary load-group-btn" onClick={openLoadModal} style={{ flex: 1 }}>
-          <DownloadCloud size={20} className="icon-mr" /> 불러오기
-        </button>
-        <button className="btn-secondary load-group-btn" onClick={openSaveModal} style={{ flex: 1 }}>
-          <Save size={20} className="icon-mr" /> 저장하기
-        </button>
-      </div>
-
-      <div className="history-btn-row">
-        <button className="btn-secondary replay-list-btn" onClick={() => setIsReplayModalOpen(true)}>
-          <History size={20} className="icon-mr" /> 리플레이 보기
-        </button>
-        <button className="btn-secondary replay-list-btn stats-open-btn" onClick={() => setIsStatsModalOpen(true)}>
-          <BarChart3 size={20} className="icon-mr" /> 당첨 통계
-        </button>
-      </div>
-
-      <button className="btn-primary start-btn" onClick={handleStart}>
-        <Play size={20} className="icon-mr" /> 레이스 시작
-      </button>
-
-      {/* 커스텀 토스트 알림 */}
-      {toastMessage && (
-        <div className="toast-notification fadeIn">
-          {toastMessage}
-        </div>
-      )}
-
-      {isModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="modal-content glass-panel" onClick={(e) => e.stopPropagation()}>
-            <h3>저장된 참가자 불러오기</h3>
-            {!savedGroups ? (
-              <p>불러오는 중...</p>
-            ) : savedGroups.length === 0 ? (
-              <p>저장된 참가자 그룹이 없습니다.</p>
-            ) : (
-              <div className="group-list" style={{ maxHeight: '200px', overflowY: 'auto', marginBottom: '16px' }}>
-                {savedGroups.map((group) => (
-                  <div key={group._id} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                    <button 
-                      className="btn-outline group-item" 
-                      style={{ flex: 1, textAlign: 'left', padding: '12px' }}
-                      onClick={() => handleLoadGroup(group)}
-                    >
-                      <strong>{group.title}</strong>
-                      <span style={{ fontSize: '0.8rem', color: '#9ca3af', marginLeft: '8px' }}>
-                        ({group.players.length}명)
-                      </span>
-                    </button>
-                    <button 
-                      className="btn-outline" 
-                      style={{ padding: '0 16px', background: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteGroup(group._id, group.title);
-                      }}
-                      title="그룹 삭제"
-                    >
-                      <X size={18} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="modal-actions" style={{ justifyContent: 'center' }}>
-              <button className="btn-close" onClick={() => setIsModalOpen(false)}>닫기</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 저장 전용 모달 */}
-      {isSaveModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsSaveModalOpen(false)}>
-          <div className="modal-content glass-panel" onClick={(e) => e.stopPropagation()}>
-            <h3>현재 참가자 목록 저장하기</h3>
-            <p style={{ fontSize: '0.9rem', color: '#94a3b8', marginBottom: '16px' }}>
-              현재 참가자 {players.length}명을 나만의 그룹으로 저장합니다. (같은 이름이 있으면 덮어씁니다)
-            </p>
-            <input
-              type="text"
-              className="modal-input"
-              placeholder="예: 우리 팀 커피 모임"
-              value={saveTitle}
-              onChange={(e) => setSaveTitle(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSaveGroup()}
-              autoFocus
-            />
-
-            {/* 기존 저장된 목록 불러오기/덮어쓰기 연계 */}
-            <div className="modal-saved-groups-section" style={{ marginTop: '20px', borderTop: '1px solid rgba(255, 255, 255, 0.1)', paddingTop: '16px', textAlign: 'left' }}>
-              <h4 style={{ fontSize: '0.95rem', fontWeight: '600', marginBottom: '10px', color: '#e2e8f0' }}>저장된 그룹 목록 (선택하면 이름이 입력됩니다)</h4>
-              {!isAuthenticated ? (
-                <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
-                  로그인하면 저장해 둔 그룹을 확인하고 불러오거나 덮어쓸 수 있습니다.
-                </p>
-              ) : !savedGroups ? (
-                <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>불러오는 중...</p>
-              ) : savedGroups.length === 0 ? (
-                <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>저장된 그룹이 없습니다.</p>
-              ) : (
-                <div className="modal-group-list" style={{ maxHeight: '150px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {savedGroups.map((group) => (
-                    <div 
-                      key={group._id} 
-                      className="modal-group-item" 
-                      onClick={() => setSaveTitle(group.title)}
-                      style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        alignItems: 'center', 
-                        padding: '8px 12px', 
-                        background: 'rgba(255, 255, 255, 0.03)', 
-                        border: '1px solid rgba(255, 255, 255, 0.08)',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        transition: 'background 0.2s'
-                      }}
-                    >
-                      <div style={{ flex: 1 }}>
-                        <span style={{ fontWeight: '500', fontSize: '0.9rem', color: '#f1f5f9' }}>{group.title}</span>
-                        <span style={{ fontSize: '0.75rem', color: '#94a3b8', marginLeft: '6px' }}>({group.players.length}명)</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="modal-actions" style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
-              <button className="btn-close" onClick={() => setIsSaveModalOpen(false)} style={{ flex: 1, background: 'rgba(255,255,255,0.1)', border: 'none' }}>취소</button>
-              <button className="btn-close" onClick={handleSaveGroup} style={{ flex: 1 }}>저장하기</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isStatsModalOpen && (
-        <StatsModal deviceId={deviceId} onClose={() => setIsStatsModalOpen(false)} />
-      )}
-
-      {/* 리플레이 목록 모달 */}
-      {isReplayModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsReplayModalOpen(false)}>
-          <div className="modal-content glass-panel" onClick={(e) => e.stopPropagation()}>
-            <h3>최근 게임 리플레이</h3>
-            <p style={{ fontSize: '0.9rem', color: '#94a3b8', marginBottom: '16px' }}>
-              최근 진행한 게임의 리플레이 기록입니다. (최대 20개 보관)
-            </p>
-            {!savedReplays ? (
-              <p>불러오는 중...</p>
-            ) : savedReplays.length === 0 ? (
-              <p style={{ color: '#94a3b8', margin: '20px 0' }}>기록된 리플레이가 없습니다.</p>
-            ) : (
-              <div className="replay-group-list" style={{ maxHeight: '250px', overflowY: 'auto', marginBottom: '16px', display: 'flex', flexDirection: 'column', gap: '10px', textAlign: 'left' }}>
-                {savedReplays.map((replay) => {
-                  const dateStr = new Date(replay.createdAt).toLocaleString('ko-KR', {
-                    month: 'short',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  });
-                  const modeText = replay.gameMode === 'all-in' ? '한 명 몰빵' : '랜덤 분배';
-                  const playerNames = replay.players.map((p) => p.name).join(', ');
-                  const loserNames = computeOutcome(replay.players, replay.raceResults, replay.amountsPool)
-                    .filter((o) => o.isLoser)
-                    .map((o) => o.player.name)
-                    .join(', ');
-                  
+              <div className="quick-amount-chips" role="group" aria-label="원터치 퀵 금액">
+                {QUICK_AMOUNT_CHIPS.map((chip) => {
+                  const isActive = chip.mode === 'set' && totalAmount === chip.value;
                   return (
-                    <div 
-                      key={replay._id}
-                      className="replay-item-card"
-                      onClick={() => onSelectReplay(replay._id)}
+                    <button
+                      key={chip.label}
+                      type="button"
+                      className={`quick-chip tabular-nums ${chip.mode === 'add' ? 'is-add' : ''} ${isActive ? 'is-active' : ''}`}
+                      onClick={() => handleQuickChipClick(chip)}
+                      aria-label={chip.ariaLabel}
+                      aria-pressed={chip.mode === 'set' ? isActive : undefined}
                     >
-                      <div className="replay-card-header">
-                        <span className="replay-date">{dateStr}</span>
-                        <span className={`replay-badge ${replay.gameMode}`}>
-                          {modeText}
-                        </span>
-                      </div>
-                      <div className="replay-players">
-                        {playerNames}
-                      </div>
-                      {loserNames && (
-                        <div className="replay-loser">☕ {loserNames}</div>
-                      )}
-                    </div>
+                      {chip.label}
+                    </button>
                   );
                 })}
               </div>
-            )}
-            <div className="modal-actions" style={{ justifyContent: 'center' }}>
-              <button className="btn-close" onClick={() => setIsReplayModalOpen(false)}>닫기</button>
+
+              <div className="random-preview">
+                <div className="random-preview-header">
+                  <div>
+                    <h3 className="preview-title">순위별 결제 금액</h3>
+                    <p className="preview-subtitle">도착 순위에 따라 금액이 배정됩니다</p>
+                  </div>
+                  <button
+                    type="button"
+                    className={`ui-btn ui-btn-secondary reroll-btn ${isCalculating ? 'is-spinning' : ''}`}
+                    onClick={() => calculateRandomAmounts(true)}
+                    aria-label="순위별 결제 금액 재분배"
+                  >
+                    <Shuffle size={14} aria-hidden="true" />
+                    <span>재분배</span>
+                  </button>
+                </div>
+
+                <div className={`preview-list ${isCalculating ? 'is-calculating' : ''}`}>
+                  {randomAmountsPool.map((amt, idx) => (
+                    <div key={idx} className={`preview-item ${idx === 0 && amt > 0 ? 'is-top' : ''}`}>
+                      <span className={`preview-rank-badge tabular-nums ${idx === 0 && amt > 0 ? 'is-top' : ''}`}>
+                        {idx + 1}위
+                      </span>
+                      <span className={`preview-amount tabular-nums ${amt === 0 ? 'is-zero' : ''}`}>
+                        {amt.toLocaleString()}원
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* 참가자 관리 카드 */}
+        <section className="ui-card setup-card" aria-labelledby="setup-players-heading">
+          <div className="setup-card-header participants-header">
+            <div className="participants-title-group">
+              <h2 id="setup-players-heading" className="setup-section-title">
+                <Users size={17} className="setup-title-icon" aria-hidden="true" />
+                <span>참가자</span>
+              </h2>
+              <span className="player-count-badge tabular-nums" aria-label={`총 ${players.length}명, 최대 20명`}>
+                {players.length}/20
+              </span>
+            </div>
+
+            <div className="group-actions">
+              <button
+                type="button"
+                className="ui-btn ui-btn-ghost compact-group-btn"
+                onClick={openLoadModal}
+              >
+                <DownloadCloud size={15} aria-hidden="true" />
+                <span>불러오기</span>
+              </button>
+              <button
+                type="button"
+                className="ui-btn ui-btn-secondary compact-group-btn"
+                onClick={openSaveModal}
+              >
+                <Save size={15} aria-hidden="true" />
+                <span>저장</span>
+              </button>
             </div>
           </div>
+
+          <div className="player-list">
+            {players.map((p, index) => {
+              const playerColor = PLAYER_COLORS[index % PLAYER_COLORS.length];
+              return (
+                <div
+                  key={p.id}
+                  className={`player-item ${draggedIndex === index ? 'is-dragging' : ''}`}
+                  draggable
+                  data-index={index}
+                  data-player-id={p.id}
+                  onDragStart={(e) => handleDragStart(e, index)}
+                  onDragOver={(e) => handleDragOver(e, index)}
+                  onDragEnd={handleDragEnd}
+                >
+                  <div
+                    className="drag-handle"
+                    style={{ touchAction: 'none' }}
+                    onTouchStart={() => handleTouchStart(index)}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                    onTouchCancel={handleTouchEnd}
+                    aria-hidden="true"
+                  >
+                    <GripVertical size={18} aria-hidden="true" />
+                  </div>
+
+                  <span
+                    className="player-color-dot"
+                    style={{ backgroundColor: playerColor }}
+                    aria-hidden="true"
+                  />
+
+                  <span className="player-number tabular-nums" aria-hidden="true">
+                    {index + 1}
+                  </span>
+
+                  <input
+                    ref={(el) => {
+                      if (el) {
+                        playerInputRefs.current.set(p.id, el);
+                      } else {
+                        playerInputRefs.current.delete(p.id);
+                      }
+                    }}
+                    type="text"
+                    className="player-name-input"
+                    value={p.name}
+                    onChange={(e) => updatePlayerName(p.id, e.target.value)}
+                    onFocus={(e) => e.target.select()}
+                    onKeyDown={(e) => handlePlayerKeyDown(e, index)}
+                    placeholder={`참가자 ${index + 1}`}
+                    aria-label={`${index + 1}번 참가자 이름`}
+                  />
+
+                  {players.length > 2 && (
+                    <button
+                      type="button"
+                      className="ui-icon-btn player-remove-btn"
+                      onClick={() => handleRemovePlayer(p.id)}
+                      aria-label={`${p.name.trim() || `참가자 ${index + 1}`} 삭제`}
+                      title="참가자 삭제"
+                    >
+                      <X size={16} aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {players.length < 20 && (
+            <button
+              type="button"
+              className="ui-btn ui-btn-secondary add-player-btn"
+              onClick={handleAddPlayer}
+            >
+              <Plus size={18} aria-hidden="true" />
+              <span>참가자 추가</span>
+            </button>
+          )}
+        </section>
+      </div>
+
+      {/* 하단 Sticky CTA Dock */}
+      <div className="setup-cta-dock">
+        <div className="cta-summary tabular-nums">{ctaSummaryText}</div>
+        <button
+          type="button"
+          className="ui-btn ui-btn-primary start-race-btn"
+          onClick={handleStart}
+        >
+          <Play size={18} aria-hidden="true" />
+          <span>레이스 시작</span>
+        </button>
+      </div>
+
+      {/* 그룹 불러오기 모달 */}
+      <Modal
+        open={isLoadModalOpen}
+        onClose={() => setIsLoadModalOpen(false)}
+        title="저장된 참가자 불러오기"
+        subtitle="선택한 그룹으로 현재 참가자 목록을 채웁니다."
+        size="md"
+        footer={
+          <button
+            type="button"
+            className="ui-btn ui-btn-secondary"
+            onClick={() => setIsLoadModalOpen(false)}
+          >
+            닫기
+          </button>
+        }
+      >
+        {!savedGroups ? (
+          <p className="modal-empty-text">저장된 그룹을 불러오는 중...</p>
+        ) : savedGroups.length === 0 ? (
+          <p className="modal-empty-text">저장된 참가자 그룹이 없습니다.</p>
+        ) : (
+          <div className="saved-group-list">
+            {savedGroups.map((group) => (
+              <div key={group._id} className="saved-group-row">
+                <button
+                  type="button"
+                  className="saved-group-select-btn"
+                  onClick={() => handleLoadGroup(group)}
+                >
+                  <span className="saved-group-title-row">
+                    <strong className="saved-group-name">{group.title}</strong>
+                    <span className="saved-group-count tabular-nums">{group.players.length}명</span>
+                  </span>
+                  <span className="saved-group-members">
+                    {group.players.map((member) => member.name).join(', ')}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="ui-icon-btn saved-group-delete-btn"
+                  onClick={() => setDeleteTarget({ id: group._id, title: group.title })}
+                  aria-label={`${group.title} 그룹 삭제`}
+                  title="그룹 삭제"
+                >
+                  <Trash2 size={16} aria-hidden="true" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Modal>
+
+      {/* 그룹 저장 모달 */}
+      <Modal
+        open={isSaveModalOpen}
+        onClose={() => {
+          if (!isSavingGroup) setIsSaveModalOpen(false);
+        }}
+        title="현재 참가자 목록 저장"
+        subtitle={`참가자 ${players.length}명을 저장합니다. 같은 이름이 있으면 덮어씁니다.`}
+        size="md"
+        footer={
+          <>
+            <button
+              type="button"
+              className="ui-btn ui-btn-secondary"
+              onClick={() => setIsSaveModalOpen(false)}
+              disabled={isSavingGroup}
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              className="ui-btn ui-btn-primary"
+              onClick={handleSaveGroup}
+              disabled={isSavingGroup}
+            >
+              {isSavingGroup ? '저장 중...' : '저장하기'}
+            </button>
+          </>
+        }
+      >
+        <div className="save-modal-body">
+          <label htmlFor="save-group-title-input" className="field-label">
+            그룹 이름
+          </label>
+          <input
+            id="save-group-title-input"
+            type="text"
+            className="modal-text-input"
+            placeholder="예: 우리 팀 커피 모임"
+            value={saveTitle}
+            onChange={(e) => setSaveTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                void handleSaveGroup();
+              }
+            }}
+            autoFocus
+          />
+
+          <div className="modal-saved-section">
+            <h3 className="modal-saved-heading">저장된 그룹 목록 (선택 시 이름 자동 입력)</h3>
+            {!isAuthenticated ? (
+              <p className="modal-helper-text">
+                로그인하면 기존 그룹을 확인하고 덮어쓸 수 있습니다. 저장하기를 누르면 로그인 후 자동으로 저장됩니다.
+              </p>
+            ) : !savedGroups ? (
+              <p className="modal-helper-text">불러오는 중...</p>
+            ) : savedGroups.length === 0 ? (
+              <p className="modal-helper-text">저장된 그룹이 없습니다.</p>
+            ) : (
+              <div className="modal-existing-list">
+                {savedGroups.map((group) => (
+                  <button
+                    key={group._id}
+                    type="button"
+                    className={`modal-existing-item ${saveTitle.trim() === group.title ? 'is-selected' : ''}`}
+                    onClick={() => setSaveTitle(group.title)}
+                  >
+                    <span className="modal-existing-name">{group.title}</span>
+                    <span className="modal-existing-count tabular-nums">{group.players.length}명</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      )}
+      </Modal>
+
+      {/* 그룹 삭제 확인 다이얼로그 */}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="저장된 그룹 삭제"
+        description={
+          deleteTarget
+            ? `'${deleteTarget.title}' 그룹을 삭제할까요? 삭제 후에는 복구할 수 없습니다.`
+            : ''
+        }
+        confirmLabel="삭제"
+        cancelLabel="취소"
+        variant="danger"
+        isLoading={isDeletingGroup}
+        onConfirm={handleConfirmDeleteGroup}
+        onCancel={() => {
+          if (!isDeletingGroup) setDeleteTarget(null);
+        }}
+      />
     </div>
   );
 }

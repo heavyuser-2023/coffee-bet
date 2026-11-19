@@ -1,0 +1,164 @@
+@layer components {
+  .replay-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .replay-card {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 13px 14px;
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    text-align: left;
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      transform 0.15s ease;
+  }
+
+  .replay-card:hover {
+    background: var(--surface-3);
+    border-color: var(--accent-border);
+  }
+
+  .replay-card:active {
+    transform: scale(0.985);
+  }
+
+  .replay-card-main {
+    min-width: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .replay-card-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .replay-card-date {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
+  .replay-mode-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
+  .replay-mode-badge.is-all-in {
+    background: var(--danger-soft);
+    color: #fca5a5;
+    border: 1px solid rgba(239, 68, 68, 0.28);
+  }
+
+  .replay-mode-badge.is-random {
+    background: var(--accent-soft);
+    color: var(--accent-bright);
+    border: 1px solid var(--accent-border);
+  }
+
+  .replay-card-players {
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .replay-card-loser {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: var(--accent-bright);
+    min-width: 0;
+  }
+
+  .replay-card-loser span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .replay-card-amount {
+    color: var(--text-secondary);
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .replay-card-play {
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-pill);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-soft);
+    color: var(--accent-bright);
+    border: 1px solid var(--accent-border);
+    flex-shrink: 0;
+  }
+
+  .replay-list-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 36px 16px;
+    gap: 10px;
+    color: var(--text-secondary);
+  }
+
+  .replay-list-empty-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-pill);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-2);
+    color: var(--text-muted);
+    border: 1px solid var(--border-subtle);
+  }
+
+  .replay-list-empty-title {
+    font-size: 0.96rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .replay-list-empty-desc {
+    font-size: 0.84rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    max-width: 260px;
+  }
+
+  .replay-list-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--surface-3);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: appSpin 0.85s linear infinite;
+  }
+}
